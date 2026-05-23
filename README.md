@@ -1,4 +1,4 @@
-# VLDB Distance — L1Tilde Metric Ablation Study
+# VLDB Distance
 
 Code and experiments for: *"Does L̃₁ asymmetric metric improve over L1 for directed road network distance estimation?"*
 
