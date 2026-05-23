@@ -2,8 +2,6 @@
 
 Code and experiments for: *"Does L̃₁ asymmetric metric improve over L1 for directed road network distance estimation?"*
 
-Based on: [Learning-Based Shortest Path Distance Estimation on Road Network Using Asymmetric Metric](VLDB_Distance.pdf) (VLDB 2025)
-
 ## Directory Structure
 
 ```
