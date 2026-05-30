@@ -828,7 +828,10 @@ def print_summary_stats(G):
     print(f"  - Min/Max/Avg degree: {min(degrees)}/{max(degrees)}/{np.mean(list(degrees)):.2f}")
     weights = list(nx.get_edge_attributes(G, 'weight').values())
     print(f"  - Min/Max/Avg weight: {min(weights):.2f}/{max(weights):.2f}/{np.mean(weights):.2f}")
-    print(f"  - No. of connected components: {nx.number_connected_components(G)}")
+    if G.is_directed():
+        print(f"  - No. of weakly connected components: {nx.number_weakly_connected_components(G)}")
+    else:
+        print(f"  - No. of connected components: {nx.number_connected_components(G)}")
 
 #################################################
 # Landmark Selection Utilities
