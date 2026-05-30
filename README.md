@@ -1,33 +1,107 @@
-# VLDB Distance
+# VLDB Distance — L1Tilde Metric Ablation Study
 
 Code and experiments for: *"Does L̃₁ asymmetric metric improve over L1 for directed road network distance estimation?"*
+
+## Quick Start
+
+```bash
+# 1. Install dependencies
+pip install torch torch_geometric numpy pandas networkx scikit-learn tqdm matplotlib seaborn osmnx routingkit_cch catboost
+
+# 2. Download data (4 Chinese cities)
+python scripts/prepare_data.py
+
+# 3. Run a single model
+python train.py --model_class rgnndist2vec --gnn_layer gat --data_dir data/OSM_Harbin_Small --query_dir data/OSM_Harbin_Small/random_500k --epochs 20 --device cpu --force_shift 0 --log_dir results/test
+
+# 4. Run full benchmark (16 baselines × 5 cities)
+bash scripts/run_full_benchmark.sh
+
+# 5. Run L1→L̃₁ ablation (5 groups × 5 cities)
+bash scripts/run_l1tilde_ablation.sh
+
+# 6. Collect & compare results
+python scripts/collect_results.py
+```
 
 ## Directory Structure
 
 ```
-├── original/              # All 16 baseline + Dist2GNN source code (unchanged)
-│   ├── train.py           #   Training script
-│   ├── basemodel.py       #   Base model class
-│   ├── geodnn.py, vdist2vec.py, ndist2vec.py, ...
-│   ├── rgnndist2vec.py    #   ★ RGAT/RSAGE/RGCN — uses L1 norm
-│   ├── rne.py             #   ★ RNE — uses L1-mean
-│   ├── lpnorm.py          #   ★ LpNorm — uses L1 (Manhattan)
-│   ├── dist2gnn_model.py  #   ★ Dist2GNN — uses L̃₁ (our method)
+l1tilde-metric-study/
+├── train.py                # Main entry point (supports all models via --model_class)
+├── models/                 # All model implementations (runnable)
+│   ├── basemodel.py        #   Base model class (fit / evaluate)
+│   ├── geodnn.py           #   GeoDNN
+│   ├── landmark.py         #   Landmark (non-ML)
+│   ├── lpnorm.py           #   LpNorm (non-ML, L1 Manhattan)
+│   ├── lpnorm_l1tilde.py   #   ★ LpNorm → L̃₁ variant
+│   ├── rgnndist2vec.py     #   ★ RGNNdist2vec (GAT/SAGE/GCN, L1)
+│   ├── rgnndist2vec_l1tilde.py  # ★ RGNNdist2vec → L̃₁ variant
+│   ├── rne.py              #   ★ RNE (L1-mean)
+│   ├── rne_l1tilde.py      #   ★ RNE → L̃₁ variant
+│   ├── ndist2vec.py        #   NDist2Vec
+│   ├── vdist2vec.py        #   VDist2Vec
+│   ├── distancenn.py       #   DistanceNN
+│   ├── embeddingnn.py      #   EmbeddingNN
+│   ├── aneda.py            #   ANEDA
+│   ├── path2vec.py         #   Path2Vec
+│   ├── catboostmodel.py    #   CatBoost (GBDT)
+│   ├── catboostnn.py       #   CatBoostNN
+│   ├── dist2gnn_model.py   #   Dist2GNN (our method)
+│   ├── dist2vec.py         #   Dist2Vec pretraining
+│   └── sparse_matrix_model.py
+├── utils/                  # Shared utilities
+│   ├── data_utils.py       #   Graph I/O, landmark selection, preprocessing
+│   ├── torch_utils.py      #   Dataset classes, optimizer, device detection
+│   ├── plot_utils.py       #   Learning curves, error plots
 │   ├── asymmetric_metrics.py  # L̃₁/L̃∞ definition
-│   ├── dist2vec.py, active_finetune.py
-│   └── data_utils.py, torch_utils.py, plot_utils.py
-│
-├── modified/              # L1 → L̃₁ modified files + diffs
-│   ├── rgnndist2vec_l1tilde.py   # RGAT/RSAGE/RGCN → L̃₁
-│   ├── rne_l1tilde.py            # RNE → L̃₁
-│   ├── lpnorm_l1tilde.py         # LpNorm → L̃₁
-│   ├── train.py                  # Training script (+5 model_class branches)
-│   └── *.diff                    # Exact line-by-line changes
-│
-└── scripts/               # Experiment orchestration
-    ├── run_full_benchmark.sh     # Full: 16 baselines × 5 cities = 85 exps
-    ├── run_l1tilde_ablation.sh   # Ablation: 5 L1Tilde models × 5 cities
-    └── collect_results.py        # Collect & compare L1 vs L1Tilde
+│   └── active_finetune.py  #   Active fine-tuning
+├── scripts/                # Experiment orchestration
+│   ├── prepare_data.py         # Data download (OSMnx → .nodes/.edges → CCH queries)
+│   ├── run_full_benchmark.sh   # Full: 16 baselines × 5 cities = 85 exps
+│   ├── run_l1tilde_ablation.sh # Ablation: 5 L1Tilde models × 5 cities
+│   ├── run_l1tilde_full.sh     # Ablation (alternative version)
+│   ├── collect_results.py      # Collect & compare L1 vs L1Tilde
+│   └── collect_l1tilde.py      # L1Tilde result collector
+├── original/               # Historical reference (flat copies, for diff comparison)
+├── modified/               # Historical reference (L1Tilde variants + .diff files)
+├── data/                   # Downloaded data (gitignored)
+└── results/                # Experiment output (gitignored)
+```
+
+## All Supported Models
+
+```bash
+# Non-ML baselines
+python train.py --model_class landmark --landmark_selection random ...
+python train.py --model_class lpnorm --p_norm 1 ...
+
+# NN baselines
+python train.py --model_class geodnn ...
+python train.py --model_class ndist2vec ...
+python train.py --model_class vdist2vec ...
+python train.py --model_class distancenn ...
+python train.py --model_class embeddingnn ...
+python train.py --model_class catboostnn ...
+python train.py --model_class catboost ...
+
+# Functional baselines
+python train.py --model_class path2vec ...
+python train.py --model_class aneda ...
+python train.py --model_class rne ...
+
+# GNN baselines (L1 metric)
+python train.py --model_class rgnndist2vec --gnn_layer gat ...
+python train.py --model_class rgnndist2vec --gnn_layer sage ...
+python train.py --model_class rgnndist2vec --gnn_layer gcn ...
+
+# L1→L̃₁ variants (ablation study)
+python train.py --model_class rgnndist2vec_l1tilde --gnn_layer gat ...
+python train.py --model_class rne_l1tilde ...
+python train.py --model_class lpnorm_l1tilde ...
+
+# Our method
+python train.py --model_class dist2gnn ...
 ```
 
 ## Experiment Design
@@ -50,31 +124,7 @@ Code and experiments for: *"Does L̃₁ asymmetric metric improve over L1 for di
 
 **Conclusion**: L̃₁ helps SAGE (which lacks attention) on large directed graphs, but GAT's attention mechanism already captures directionality. The metric's benefit depends on the architecture's ability to utilize asymmetric dimensions.
 
-## Usage
-
-### 1. Run full benchmark (original baselines)
-```bash
-cd scripts/
-# Edit paths in run_full_benchmark.sh first
-bash run_full_benchmark.sh
-```
-
-### 2. Run L1Tilde ablation
-```bash
-# First: copy modified/ files into your survey src/models/
-cp modified/*.py /path/to/survey/src/models/
-cp modified/train.py /path/to/survey/src/
-
-# Then run:
-bash run_l1tilde_ablation.sh
-```
-
-### 3. Collect & compare results
-```bash
-python3 collect_results.py --base /path/to/results
-```
-
-## Modifications (per baseline, ~10 lines each)
+## L̃₁ Metric Implementation (~10 lines per baseline)
 
 The change is minimal and localized:
 
