@@ -2,22 +2,86 @@
 
 Code and experiments for: *"Does L̃₁ asymmetric metric improve over L1 for directed road network distance estimation?"*
 
+## Data Preparation
+
+### Data Sources
+
+Road network data is downloaded from OpenStreetMap via OSMnx for 4 Chinese cities:
+
+| City | Approx. Nodes | Approx. Edges | Query Pairs (45/node) |
+|------|:-----------:|:-----------:|:-------------------:|
+| Harbin | 44K | 108K | ~1,981,000 |
+| Chengdu | 111K | 275K | ~4,995,000 |
+| Qingdao | 119K | 294K | ~5,355,000 |
+| Beijing | 163K | 402K | ~7,335,000 |
+
+All road networks are **directed graphs** (oneway roads preserved, ~18% edges are oneway). Shortest-path distances are asymmetric: `d(u→v) ≠ d(v→u)` for ~94% of query pairs.
+
+### Pipeline Overview
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Stage 1: Download + Convert                              │
+│  python scripts/prepare_data.py                           │
+│  ┌──────────┐    ┌──────────┐    ┌────────────────────┐  │
+│  │ OSMnx    │ →  │ .nodes   │    │ data/OSM_{City}/   │  │
+│  │ download │    │ .edges   │    │   {City}.nodes      │  │
+│  │          │    │          │    │   {City}.edges      │  │
+│  └──────────┘    └──────────┘    └────────────────────┘  │
+├─────────────────────────────────────────────────────────┤
+│  Stage 2: Generate Query Pairs                            │
+│  python scripts/prepare_data.py  (same script)            │
+│  ┌──────────────────┐    ┌─────────────────────────────┐ │
+│  │ CCH shortest     │ →  │ {City}_train.queries (80%)  │ │
+│  │ path (inertial   │    │ {City}_test.queries  (20%)  │ │
+│  │ flow ordering)   │    │ Format: u,v,d_uv,d_vu       │ │
+│  └──────────────────┘    └─────────────────────────────┘ │
+├─────────────────────────────────────────────────────────┤
+│  Stage 3: Extra Files (model-specific)                    │
+│  ┌──────────────────────────────────────────────────────┐ │
+│  │ python scripts/generate_landmark_distances.py        │ │
+│  │   → landmark_dim61.embeddings  (CatBoost, CatBoostNN)│ │
+│  │                                                      │ │
+│  │ python scripts/generate_parts_file_rne.py            │ │
+│  │   → {City}.parts  (RNE, requires pymetis + METIS)    │ │
+│  └──────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Query Strategy
+
+Queries are generated proportional to graph size: **45 pairs per node** (matching the original survey protocol). For each (source, target) pair, both `d_uv` and `d_vu` are computed via CCH exact shortest path, enabling evaluation on directed graphs.
+
+### Which Models Need Which Files
+
+| Data File | Required By |
+|-----------|-------------|
+| `.nodes` + `.edges` | All 17 models |
+| `.queries` (train/test) | All 17 models |
+| `landmark_dim*.embeddings` | CatBoost, CatBoostNN |
+| `.parts` | RNE only |
+
 ## Quick Start
 
 ```bash
 # 1. Install dependencies
 pip install torch torch_geometric numpy pandas networkx scikit-learn tqdm matplotlib seaborn osmnx routingkit_cch catboost
 
-# 2. Download data (4 Chinese cities: Harbin, Chengdu, Qingdao, Beijing)
-python scripts/prepare_data.py
+# 2. Download and prepare data (Stages 1 + 2: .nodes, .edges, .queries)
+python scripts/prepare_data.py                      # all 4 cities
+# python scripts/prepare_data.py --city Harbin      # single city
 
-# 3. Generate extra data files (required by RNE, CatBoost, CatBoostNN)
-pip install pymetis                                    # required for RNE .parts generation
-python scripts/generate_parts_file_rne.py --data_dir data/OSM_Harbin_Small   # × 5 cities
-python scripts/generate_landmark_distances.py --data_dir data/OSM_Harbin_Small --num_landmarks 61
+# 3. Generate extra data files (Stage 3: model-specific)
+pip install pymetis                                  # required for RNE .parts
+for city in Harbin Chengdu Qingdao Beijing; do
+    python scripts/generate_landmark_distances.py --data_dir data/OSM_${city} --num_landmarks 61
+    python scripts/generate_parts_file_rne.py --data_dir data/OSM_${city}
+done
 
 # 4. Run a single model
-python train.py --model_class rgnndist2vec --gnn_layer gat --data_dir data/OSM_Harbin_Small --query_dir data/OSM_Harbin_Small/random_500k --epochs 20 --device cpu --force_shift 0 --log_dir results/test
+python train.py --model_class rgnndist2vec --gnn_layer gat \
+    --data_dir data/OSM_Harbin --query_dir data/OSM_Harbin/proportional \
+    --epochs 20 --device cpu --force_shift 0 --log_dir results/test
 
 # 5. Run full benchmark (16 baselines × 5 cities)
 bash scripts/run_full_benchmark.sh
