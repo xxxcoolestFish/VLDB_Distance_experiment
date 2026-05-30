@@ -8,19 +8,24 @@ Code and experiments for: *"Does L̃₁ asymmetric metric improve over L1 for di
 # 1. Install dependencies
 pip install torch torch_geometric numpy pandas networkx scikit-learn tqdm matplotlib seaborn osmnx routingkit_cch catboost
 
-# 2. Download data (4 Chinese cities)
+# 2. Download data (4 Chinese cities: Harbin, Chengdu, Qingdao, Beijing)
 python scripts/prepare_data.py
 
-# 3. Run a single model
+# 3. Generate extra data files (required by RNE, CatBoost, CatBoostNN)
+pip install pymetis                                    # required for RNE .parts generation
+python scripts/generate_parts_file_rne.py --data_dir data/OSM_Harbin_Small   # × 5 cities
+python scripts/generate_landmark_distances.py --data_dir data/OSM_Harbin_Small --num_landmarks 61
+
+# 4. Run a single model
 python train.py --model_class rgnndist2vec --gnn_layer gat --data_dir data/OSM_Harbin_Small --query_dir data/OSM_Harbin_Small/random_500k --epochs 20 --device cpu --force_shift 0 --log_dir results/test
 
-# 4. Run full benchmark (16 baselines × 5 cities)
+# 5. Run full benchmark (16 baselines × 5 cities)
 bash scripts/run_full_benchmark.sh
 
-# 5. Run L1→L̃₁ ablation (5 groups × 5 cities)
+# 6. Run L1→L̃₁ ablation (5 groups × 5 cities)
 bash scripts/run_l1tilde_ablation.sh
 
-# 6. Collect & compare results
+# 7. Collect & compare results
 python scripts/collect_results.py
 ```
 
