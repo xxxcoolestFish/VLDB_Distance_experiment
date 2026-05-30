@@ -2,7 +2,7 @@
 """
 VLDB Distance — 一键数据准备脚本
 ===============================
-从 OSMnx 下载 → .nodes/.edges → 生成 query pairs (CCH 精确距离)
+从 OSMnx 下载 → .nodes/.edges → 生成 query pairs 
 
 用法:
     python prepare_data.py                          # 全量，断点续传
@@ -53,6 +53,7 @@ CITIES = {
 }
 
 # 各城市的 query 策略: ("proportional" 或 ("fixed", 数量))
+# 这个proportional是根据之前的综述研究中每个城市查询的数量与之节点的比例关系确定的
 CITY_QUERY_STRATEGY = {
     "Harbin":       ("proportional", 45),
     "Chengdu":      ("proportional", 45),

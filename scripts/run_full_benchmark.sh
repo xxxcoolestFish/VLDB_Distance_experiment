@@ -11,13 +11,16 @@ set -e
 # Configure paths below before running.
 # ============================================================================
 
-# ---- Configuration (edit these) ----
-SRC=/root/mornai-tmp/VLDB_Distance/shortest-distance-survey/src
-PYTHON=/root/miniconda3/bin/python
-DATA_BASE=/root/mornai-tmp/VLDB_Distance/shortest-distance-survey/data
-LOG_BASE=/root/mornai-tmp/VLDB_Distance/shortest-distance-survey/results
-DEVICE=cuda
-FORCE_SHIFT=0
+# ---- Configuration (auto-detected from script location) ----
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+STUDY_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"   # l1tilde-metric-study/
+
+SRC="${STUDY_DIR}"                           # train.py + models/ + utils/
+PYTHON="${PYTHON:-python3}"
+DATA_BASE="${STUDY_DIR}/data"
+LOG_BASE="${STUDY_DIR}/results"
+DEVICE="${DEVICE:-}"                          # empty = train.py auto-detect
+FORCE_SHIFT="${FORCE_SHIFT:-0}"
 
 # ---- Protocol Parameters (fixed, per survey paper) ----
 BATCH_SIZE=1024
@@ -88,7 +91,8 @@ run_exp() {
         time_flag=""
     fi
 
-    local device_flag="--device ${DEVICE}"
+    local device_flag=""
+    [ -n "$DEVICE" ] && device_flag="--device ${DEVICE}"
     [ "$model" == "catboost" ] && device_flag="--device cpu"
 
     $PYTHON -u train.py \

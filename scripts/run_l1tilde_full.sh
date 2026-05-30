@@ -3,15 +3,19 @@
 # Replaces L1 with L1_tilde; compares against existing L1 results
 
 set -e
-SRC=/root/mornai-tmp/VLDB_Distance/shortest-distance-survey/src
-PY=/root/miniconda3/bin/python
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+STUDY_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"   # l1tilde-metric-study/
+SRC="${STUDY_DIR}"
+PY="${PYTHON:-python3}"
 cd $SRC
 
-COMMON="--device cuda --force_shift 0 --epochs 20 --time_limit 5 --validate --l1tilde_r 62 --l1tilde_s 2 --embedding_dim 64"
+DEVICE="${DEVICE:-}"
+[ -n "$DEVICE" ] && DEVICE_FLAG="--device $DEVICE" || DEVICE_FLAG=""
+COMMON="$DEVICE_FLAG --force_shift 0 --epochs 20 --time_limit 5 --validate --l1tilde_r 62 --l1tilde_s 2 --embedding_dim 64"
 
 run_exp() {
     local model=$1 city=$2 data_dir=$3 query_dir=$4 loss=$5 lr=$6 extra_args=$7
-    local log_dir="../results/${city}_${model}"
+    local log_dir="results/${city}_${model}"
     echo "=== $(date '+%H:%M:%S')  $model  $city ==="
     $PY -u train.py \
         --model_class $model --data_dir $data_dir --query_dir $query_dir \
@@ -27,8 +31,8 @@ print(f'  => Test MRE: {t[\"mre_percent\"]:.2f}%  |  Train MRE: {d[\"evaluation\
 }
 
 # ===== Hrb_Small (small city, fast) =====
-S="../data/OSM_Harbin_Small"
-Q="../data/OSM_Harbin_Small/random_500k"
+S="data/OSM_Harbin_Small"
+Q="data/OSM_Harbin_Small/random_500k"
 run_exp rgnndist2vec_l1tilde OSM_Harbin_Small "$S" "$Q" smoothl1 0.01 "--gnn_layer gat"
 run_exp rgnndist2vec_l1tilde OSM_Harbin_Small "$S" "$Q" smoothl1 0.01 "--gnn_layer sage"
 run_exp rgnndist2vec_l1tilde OSM_Harbin_Small "$S" "$Q" smoothl1 0.01 "--gnn_layer gcn"
@@ -37,8 +41,8 @@ run_exp lpnorm_l1tilde OSM_Harbin_Small "$S" "$Q" mse 0.01 "--epochs 1 --p_norm 
 
 # ===== Large cities =====
 for city in Harbin Chengdu Qingdao Beijing; do
-    D="../data/OSM_${city}"
-    Q="../data/OSM_${city}/proportional"
+    D="data/OSM_${city}"
+    Q="data/OSM_${city}/proportional"
     run_exp rgnndist2vec_l1tilde "OSM_${city}" "$D" "$Q" smoothl1 0.01 "--gnn_layer gat"
     run_exp rgnndist2vec_l1tilde "OSM_${city}" "$D" "$Q" smoothl1 0.01 "--gnn_layer sage"
     run_exp rgnndist2vec_l1tilde "OSM_${city}" "$D" "$Q" smoothl1 0.01 "--gnn_layer gcn"

@@ -1,6 +1,8 @@
 import json, os, sys
 
-base = "/root/mornai-tmp/VLDB_Distance/shortest-distance-survey/results"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+STUDY_DIR = os.path.dirname(SCRIPT_DIR)  # l1tilde-metric-study/
+base = os.environ.get("RESULTS_DIR", os.path.join(STUDY_DIR, "results"))
 
 cities = ["OSM_Harbin_Small", "OSM_Harbin", "OSM_Chengdu", "OSM_Qingdao", "OSM_Beijing"]
 

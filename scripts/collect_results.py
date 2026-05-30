@@ -10,8 +10,12 @@ Usage:
 """
 import json, os, sys, argparse
 
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+STUDY_DIR = os.path.dirname(SCRIPT_DIR)  # l1tilde-metric-study/
+DEFAULT_RESULTS = os.path.join(STUDY_DIR, "results")
+
 parser = argparse.ArgumentParser()
-parser.add_argument("--base", default="/root/mornai-tmp/VLDB_Distance/shortest-distance-survey/results")
+parser.add_argument("--base", default=os.environ.get("RESULTS_DIR", DEFAULT_RESULTS))
 args = parser.parse_args()
 
 BASE = args.base

@@ -11,13 +11,16 @@ set -e
 # Requires: modified/ code already placed in $SRC/models/
 # ============================================================================
 
-# ---- Configuration (edit these) ----
-SRC=/root/mornai-tmp/VLDB_Distance/shortest-distance-survey/src
-PYTHON=/root/miniconda3/bin/python
-DATA_BASE=/root/mornai-tmp/VLDB_Distance/shortest-distance-survey/data
-LOG_BASE=/root/mornai-tmp/VLDB_Distance/shortest-distance-survey/results
-DEVICE=cuda
-FORCE_SHIFT=0
+# ---- Configuration (auto-detected from script location) ----
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+STUDY_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"   # l1tilde-metric-study/
+
+SRC="${STUDY_DIR}"                           # train.py + models/ + utils/
+PYTHON="${PYTHON:-python3}"
+DATA_BASE="${STUDY_DIR}/data"
+LOG_BASE="${STUDY_DIR}/results"
+DEVICE="${DEVICE:-}"                          # empty = train.py auto-detect
+FORCE_SHIFT="${FORCE_SHIFT:-0}"
 
 # ---- Protocol Parameters (same as full benchmark) ----
 BATCH_SIZE=1024
@@ -82,6 +85,9 @@ run_l1tilde() {
             ;;
     esac
 
+    local device_flag=""
+    [ -n "$DEVICE" ] && device_flag="--device $DEVICE"
+
     $PYTHON -u train.py \
         --model_class "$model_class" \
         --data_dir "$data_dir" \
@@ -91,7 +97,7 @@ run_l1tilde() {
         --batch_size_train $BATCH_SIZE \
         --embedding_dim $EMB_DIM \
         $epochs_flag $time_flag --validate \
-        --device $DEVICE --force_shift $FORCE_SHIFT \
+        $device_flag --force_shift $FORCE_SHIFT \
         --l1tilde_r $R --l1tilde_s $S \
         --log_dir "$log_dir" \
         $extra_args
