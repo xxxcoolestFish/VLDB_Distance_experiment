@@ -31,6 +31,8 @@ from utils.data_utils import (
     read_embedding_file,
     print_green,
     read_parts_file,
+    ensure_landmark_embeddings,
+    ensure_parts_file,
 )
 from utils.plot_utils import (
     set_plot_style,
@@ -519,8 +521,8 @@ elif model_class == 'path2vec':
 elif model_class == 'rne':
     from models.rne import RNE
 
-    # Load parts information (if available)
-    parts = read_parts_file(data_dir, data_name)
+    # Load parts (auto-generate with METIS if missing)
+    parts = ensure_parts_file(data_dir, data_name)
 
     # Initialize model
     model = RNE(num_nodes=num_nodes,                                ## No. of nodes
@@ -530,24 +532,30 @@ elif model_class == 'rne':
 elif model_class == 'catboost':
     from models.catboostmodel import CatBoostModel
 
-    # Load custom node embeddings
-    custom_node_embeddings = read_embedding_file(embedding_filename)
+    # Load landmark embeddings (auto-generate if missing)
+    if embedding_filename is not None:
+        landmark_embs = read_embedding_file(embedding_filename)
+    else:
+        landmark_embs = ensure_landmark_embeddings(data_dir)
 
     # Initialize model
     model = CatBoostModel(num_nodes=num_nodes,                      ## No. of nodes
                           coordinate_embs=node_attributes,          ## Precomputed node embeddings (coordinates)
-                          landmark_embs=custom_node_embeddings      ## Precomputed node embeddings (landmarks distances)
+                          landmark_embs=landmark_embs               ## Precomputed node embeddings (landmarks distances)
                           )
 elif model_class == 'catboostnn':
     from models.catboostnn import CatBoostNN
 
-    # Load custom node embeddings
-    custom_node_embeddings = read_embedding_file(embedding_filename)
+    # Load landmark embeddings (auto-generate if missing)
+    if embedding_filename is not None:
+        landmark_embs = read_embedding_file(embedding_filename)
+    else:
+        landmark_embs = ensure_landmark_embeddings(data_dir)
 
     # Initialize model
     model = CatBoostNN(num_nodes=num_nodes,                         ## No. of nodes
                        coordinate_embs=node_attributes,             ## Precomputed node embeddings (coordinates)
-                       landmark_embs=custom_node_embeddings,        ## Precomputed node embeddings (landmarks distances)
+                       landmark_embs=landmark_embs,                 ## Precomputed node embeddings (landmarks distances)
                        max_distance=train_dataset.D.mean()          ## Mean distance for scaling
                        )
 elif model_class == 'dist2gnn':

@@ -178,6 +178,79 @@ def read_embedding_file(file_name, delimiter=None, comment='#'):
 
     return node_embeds
 
+def ensure_landmark_embeddings(data_dir, num_landmarks=61):
+    """Get landmark distance embeddings, auto-generating if needed.
+
+    Checks for `landmark_dim{num_landmarks}.embeddings` in data_dir.
+    If missing, computes shortest-path distances from random landmarks
+    and saves the file.  Returns (num_nodes, num_landmarks) float32 array.
+
+    Args:
+        data_dir: Path to directory with *.nodes and *.edges files.
+        num_landmarks: Number of landmark nodes to select.
+
+    Returns:
+        np.ndarray of shape (num_nodes, num_landmarks), or None on failure.
+    """
+    embedding_path = os.path.join(data_dir, f"landmark_dim{num_landmarks}.embeddings")
+    if os.path.exists(embedding_path):
+        return read_embedding_file(embedding_path)
+    # Auto-generate
+    print_warning(f"Landmark embeddings not found: {embedding_path}")
+    print_warning("Auto-generating... (this runs once per city)")
+    try:
+        # Import here to avoid circular dependency at module load
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "generate_landmark_distances",
+            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                         "scripts", "generate_landmark_distances.py"))
+        if spec is None or spec.loader is None:
+            raise ImportError("Cannot load generate_landmark_distances.py")
+        gen_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(gen_module)
+        return gen_module.generate_landmark_distances(data_dir, num_landmarks)
+    except Exception as e:
+        print_error(f"Failed to auto-generate landmark embeddings: {e}")
+        raise
+
+def ensure_parts_file(data_dir, data_name):
+    """Get .parts file for RNE, auto-generating with METIS if needed.
+
+    Args:
+        data_dir: Path to directory with *.nodes and *.edges files.
+        data_name: Dataset name (basename of data_dir).
+
+    Returns:
+        np.ndarray of shape (num_nodes, num_levels), or None on failure.
+    """
+    parts = read_parts_file(data_dir, data_name)
+    if parts is not None:
+        return parts
+    # Auto-generate
+    print_warning(f"Parts file not found for {data_name}. Auto-generating with METIS...")
+    print_warning("This runs once per city and requires pymetis.")
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "generate_parts_file_rne",
+            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                         "scripts", "generate_parts_file_rne.py"))
+        if spec is None or spec.loader is None:
+            raise ImportError("Cannot load generate_parts_file_rne.py")
+        gen_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(gen_module)
+        gen_module.generate_parts(data_name, data_dir)
+        return read_parts_file(data_dir, data_name)
+    except ImportError as e:
+        print_error(f"Cannot auto-generate .parts: {e}")
+        print_error("Install pymetis:  pip install pymetis")
+        print_error("Or generate manually: python scripts/generate_parts_file_rne.py --data_dir DATA_DIR")
+        return None
+    except Exception as e:
+        print_error(f"Failed to auto-generate .parts: {e}")
+        return None
+
 def write_query_file(file_name, dataset, delimiter=',', comment='#'):
     print_green(f"Saving dataset: {file_name}")
     print_warning("Warning: The node ids are right-shifted by 1 (i.e., node ids start from `1 to n` instead of `0 to n-1`) in the saved files.")

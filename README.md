@@ -29,22 +29,15 @@ All road networks are **directed graphs** (oneway roads preserved, ~18% edges ar
 │  │          │    │          │    │   {City}.edges      │  │
 │  └──────────┘    └──────────┘    └────────────────────┘  │
 ├─────────────────────────────────────────────────────────┤
-│  Stage 2: Generate Query Pairs                            │
-│  python scripts/prepare_data.py  (same script)            │
+│  Stage 2: Generate Query Pairs (same script)              │
 │  ┌──────────────────┐    ┌─────────────────────────────┐ │
 │  │ CCH shortest     │ →  │ {City}_train.queries (80%)  │ │
 │  │ path (inertial   │    │ {City}_test.queries  (20%)  │ │
 │  │ flow ordering)   │    │ Format: u,v,d_uv,d_vu       │ │
 │  └──────────────────┘    └─────────────────────────────┘ │
 ├─────────────────────────────────────────────────────────┤
-│  Stage 3: Extra Files (model-specific)                    │
-│  ┌──────────────────────────────────────────────────────┐ │
-│  │ python scripts/generate_landmark_distances.py        │ │
-│  │   → landmark_dim61.embeddings  (CatBoost, CatBoostNN)│ │
-│  │                                                      │ │
-│  │ python scripts/generate_parts_file_rne.py            │ │
-│  │   → {City}.parts  (RNE, requires pymetis + METIS)    │ │
-│  └──────────────────────────────────────────────────────┘ │
+│  Stage 3: Extra files — auto-generated on first model run │
+│  RNE → .parts (METIS)    CatBoost → landmark embeddings   │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -52,14 +45,20 @@ All road networks are **directed graphs** (oneway roads preserved, ~18% edges ar
 
 Queries are generated proportional to graph size: **45 pairs per node** (matching the original survey protocol). For each (source, target) pair, both `d_uv` and `d_vu` are computed via CCH exact shortest path, enabling evaluation on directed graphs.
 
-### Which Models Need Which Files
+### Auto-Generated Files
 
-| Data File | Required By |
-|-----------|-------------|
-| `.nodes` + `.edges` | All 17 models |
-| `.queries` (train/test) | All 17 models |
-| `landmark_dim*.embeddings` | CatBoost, CatBoostNN |
-| `.parts` | RNE only |
+When running RNE, CatBoost, or CatBoostNN for the first time on a city, the required extra data files are **automatically generated** and cached to disk:
+
+| Model | Auto-generated file | Time (Harbin) | Dependency |
+|-------|--------------------|:---:|------------|
+| RNE | `.parts` (hierarchical METIS partitions) | ~1 min | `pymetis` |
+| CatBoost / CatBoostNN | `landmark_dim61.embeddings` | ~3 min | (none extra) |
+
+Subsequent runs skip generation. You can also pre-generate manually:
+```bash
+python scripts/generate_landmark_distances.py --data_dir data/OSM_Harbin
+python scripts/generate_parts_file_rne.py --data_dir data/OSM_Harbin      # needs pymetis
+```
 
 ## Quick Start
 
@@ -71,12 +70,8 @@ pip install torch torch_geometric numpy pandas networkx scikit-learn tqdm matplo
 python scripts/prepare_data.py                      # all 4 cities
 # python scripts/prepare_data.py --city Harbin      # single city
 
-# 3. Generate extra data files (Stage 3: model-specific)
-pip install pymetis                                  # required for RNE .parts
-for city in Harbin Chengdu Qingdao Beijing; do
-    python scripts/generate_landmark_distances.py --data_dir data/OSM_${city} --num_landmarks 61
-    python scripts/generate_parts_file_rne.py --data_dir data/OSM_${city}
-done
+# (Optional) Install pymetis if you plan to use RNE
+pip install pymetis
 
 # 4. Run a single model
 python train.py --model_class rgnndist2vec --gnn_layer gat \

@@ -20,6 +20,38 @@ from utils.data_utils import (
     compute_landmark_distances,
 )
 
+def generate_landmark_distances(data_dir, num_landmarks=61):
+    """Generate landmark distance embeddings for a dataset.
+
+    Args:
+        data_dir: Path to directory containing *.nodes and *.edges files
+        num_landmarks: Number of landmarks to select
+
+    Returns:
+        numpy array of shape (num_nodes, num_landmarks) — the embeddings
+    """
+    print(f"  Auto-generating landmark embeddings for: {data_dir}")
+    G = load_graph(data_dir)
+
+    landmarks = select_landmarks(G, num_landmarks, strategy="random")
+    dist_matrix = compute_landmark_distances(G, landmarks)
+    print(f"  Computed landmark distance matrix: {dist_matrix.shape}")
+
+    # Save landmark distance embeddings
+    node_attr_path = os.path.join(data_dir, f"landmark_dim{num_landmarks}.embeddings")
+    print_green(f"  Saving: {node_attr_path}")
+    comment = "#"
+    delimiter = " "
+    with open(node_attr_path, 'w') as f:
+        f.write(f"{comment} Format: node_id features\n")
+        for node, data in enumerate(dist_matrix):
+            f.write(f"{node+1}{delimiter}{delimiter.join(map(str, data))}\n")
+
+    # Return the embeddings in the same format as read_embedding_file
+    import numpy as np
+    return dist_matrix.astype(np.float32)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate landmark distance embeddings for shortest-distance datasets.")
     parser.add_argument('--data_dir', type=str, default=None,
@@ -38,30 +70,5 @@ if __name__ == "__main__":
         print(f"Run 'python scripts/prepare_data.py' first to download data.")
         sys.exit(1)
 
-    data_name = os.path.basename(os.path.normpath(args.data_dir))
-    print(f"Data: {data_name}")
-    print(f"Data dir: {args.data_dir}")
-    print(f"Num landmarks: {args.num_landmarks}")
-
-    # Load graph
-    G = load_graph(args.data_dir)
-    print_summary_stats(G)
-
-    # Select landmarks and compute distances
-    landmarks = select_landmarks(G, args.num_landmarks, strategy="random")
-    dist_matrix = compute_landmark_distances(G, landmarks)
-    print(f"Computed landmark distance matrix with shape: {dist_matrix.shape}")
-
-    # Save landmark distance embeddings
-    node_attr_path = os.path.join(args.data_dir, f"landmark_dim{args.num_landmarks}.embeddings")
-    print_green(f"Saving nodes: {node_attr_path}")
-    print_warning("Warning: The node ids are right-shifted by 1 (i.e., node ids start from `1 to n` "
-                  "instead of `0 to n-1`) in the saved files.")
-    comment = "#"
-    delimiter = " "
-    with open(node_attr_path, 'w') as f:
-        f.write(f"{comment} Format: node_id features\n")
-        for node, data in enumerate(dist_matrix):
-            f.write(f"{node+1}{delimiter}{delimiter.join(map(str, data))}\n")  # Right-shift node id by 1
-
-    print_green(f"Done! Embeddings saved to: {node_attr_path}")
+    generate_landmark_distances(args.data_dir, args.num_landmarks)
+    print_green(f"Done!")
