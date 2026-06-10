@@ -892,7 +892,8 @@ if args.high_asym_eval:
         query_dir, batch_size_test=batch_size_test, seed=seed,
         num_workers=num_workers, force_shift=force_shift)
     _, _, _, high_asym_metrics = evaluate_with_asym(
-        model, test_dataloader_asym, max_distance=max_distance, device=device)
+        model, test_dataloader_asym, max_distance=max_distance, device=device,
+        raw_max_distance=max_distance_raw)
     # 写入 results JSON
     experiment_results["evaluation"]["test_high_asym"] = high_asym_metrics
     with open(results_json_path, 'w') as f:

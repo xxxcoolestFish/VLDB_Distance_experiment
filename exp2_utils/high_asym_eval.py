@@ -163,11 +163,16 @@ def compute_high_asym_metrics(predictions, targets, targets_rev):
 
 
 def evaluate_with_asym(model, dataloader, max_distance=1.0, device="cuda",
-                        verbose=True):
+                        verbose=True, raw_max_distance=None):
     """带高非对称指标的完整评估。
 
     用包含反向距离的 dataloader 评估模型，
     输出全局 MRE + 高非对称 MRE + 非对称比分布。
+
+    Args:
+        raw_max_distance: 原始最大距离（用于反归一化）。
+                          如果模型输出被归一化到 [0,1]，需要此参数
+                          将预测值恢复到原始米制。
     """
     model.eval()
     model.to(device)
@@ -193,6 +198,10 @@ def evaluate_with_asym(model, dataloader, max_distance=1.0, device="cuda",
     predictions = np.hstack(predictions)
     targets = np.hstack(targets)
     targets_rev = np.hstack(targets_rev)
+
+    # 反归一化: 如果 max_distance=1.0 但数据是原始米制
+    if raw_max_distance is not None and raw_max_distance > 1.0:
+        predictions = predictions * raw_max_distance
 
     metrics = compute_high_asym_metrics(predictions, targets, targets_rev)
     query_latency_us = total_time / len(targets) * 1_000_000
