@@ -99,6 +99,8 @@ parser.add_argument('--num_workers', type=int, default=None,
 # Logging configuration
 parser.add_argument('--log_dir', type=str, default='../results/default',
                     help='Directory to save logs and checkpoints')
+parser.add_argument('--high_asym_eval', action='store_true',
+                    help='Enable high-asymmetry stratified evaluation')
 parser.add_argument('--debug', action='store_true',
                     help='Enable debug mode for additional logging and checks')
 # Model specific arguments
@@ -846,6 +848,35 @@ with open(summary_csv, 'a', newline='') as f:
         writer.writeheader()
     writer.writerow(csv_row)
 print_green(f"Summary appended to: {summary_csv}")
+
+# %%
+################
+# (Optional) High-Asymmetry Stratified Evaluation (Strategy 2)
+################
+
+high_asym_metrics = None
+if args.high_asym_eval:
+    from exp2_utils.high_asym_eval import (
+        load_dataset_with_reverse, evaluate_with_asym)
+    print("\n" + "=" * 60)
+    print("  High-Asymmetry Stratified Evaluation")
+    print("=" * 60)
+    test_dataloader_asym = load_dataset_with_reverse(
+        query_dir, batch_size_test=batch_size_test, seed=seed,
+        num_workers=num_workers, force_shift=force_shift)
+    _, _, _, high_asym_metrics = evaluate_with_asym(
+        model, test_dataloader_asym, max_distance=max_distance, device=device)
+    # 写入 results JSON
+    experiment_results["evaluation"]["test_high_asym"] = high_asym_metrics
+    with open(results_json_path, 'w') as f:
+        json.dump(experiment_results, f, indent=2, default=str)
+    print_green(f"High-Asym results appended to: {results_json_path}")
+    csv_row["test_high_asym_mre_percent"] = high_asym_metrics[
+        "high_asym_mre_percent"]
+    csv_row["test_high_asym_global_mre"] = high_asym_metrics[
+        "global_mre_percent"]
+    csv_row["test_high_asym_fraction"] = high_asym_metrics[
+        "high_asym_fraction"]
 
 # %%
 ################
