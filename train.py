@@ -332,7 +332,7 @@ if bidirectional:
                                    batch_size=batch_size_train,
                                    shuffle=True,
                                    num_workers=num_workers,
-                                   pin_memory=pin_memory)
+                                   pin_memory=True)
     print(f"  - Direction-aware: using bidirectional train batches "
           f"(4 columns: u, v, d_uv, d_vu)")
 print(f"Test dataset...")
