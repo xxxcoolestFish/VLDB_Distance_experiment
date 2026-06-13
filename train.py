@@ -159,6 +159,11 @@ parser.add_argument('--l1tilde_r', type=int, default=62,
                     help='Number of symmetric dimensions for L1Tilde (r+s must equal embed_dim)')
 parser.add_argument('--l1tilde_s', type=int, default=2,
                     help='Number of asymmetric dimensions for L1Tilde (r+s must equal embed_dim)')
+# Strategy 3: Direction-aware training
+parser.add_argument('--direction_aware', action='store_true',
+                    help='Enable direction-aware training with auxiliary loss')
+parser.add_argument('--aux_lambda', type=float, default=0.1,
+                    help='Weight of auxiliary loss for direction-aware training')
 
 args = parser.parse_args()
 
@@ -318,6 +323,20 @@ if model_class not in ('ndist2vec', 'lpnorm', 'landmark', 'catboost'):
 else:
     max_distance = max_distance_raw
     print(f"  - ndist2vec: using raw distances (max={max_distance_raw:.2f})")
+
+# Strategy 3: Direction-aware training — use bidirectional dataloader
+bidirectional = args.direction_aware
+if bidirectional:
+    from exp2_utils.high_asym_eval import AsymWorkloadDataset
+    train_queries = train_dataset.queries
+    bidir_dataset = AsymWorkloadDataset(train_queries, replicate=False)
+    train_dataloader = DataLoader(bidir_dataset,
+                                   batch_size=batch_size_train,
+                                   shuffle=True,
+                                   num_workers=num_workers,
+                                   pin_memory=True)
+    print(f"  - Direction-aware: using bidirectional train batches "
+          f"(4 columns: u, v, d_uv, d_vu)")
 print(f"Test dataset...")
 print(f"  - No. of samples: {len(test_dataset)}")
 print(f"  - Min/Max distance (normalized): {test_dataset.D.min():.6f}/{test_dataset.D.max():.6f}")
@@ -647,6 +666,19 @@ elif model_class == 'rgnndist2vec_l1tilde_proj':
                                  disable_edge_weight=disable_edge_weight,
                                  l1tilde_r=l1tilde_r,
                                  l1tilde_s=l1tilde_s)
+elif model_class == 'rgnndist2vec_l1tilde_da':
+    from exp3_models.rgnndist2vec_l1tilde import RGNNdist2vecL1Tilde
+    model = RGNNdist2vecL1Tilde(n_input=2,
+                                 n_hidden_1=512,
+                                 n_hidden_2=embedding_dim,
+                                 layer_type=gnn_layer,
+                                 node_attributes=node_attributes,
+                                 edge_attributes=edge_attributes,
+                                 max_distance=max_distance,
+                                 disable_edge_weight=disable_edge_weight,
+                                 l1tilde_r=l1tilde_r,
+                                 l1tilde_s=l1tilde_s,
+                                 aux_lambda=args.aux_lambda)
 elif model_class == 'rne_l1tilde':
     from models.rne_l1tilde import RNEL1Tilde
 
@@ -673,6 +705,18 @@ elif model_class == 'rne_l1tilde_proj':
                         parts=parts,
                         l1tilde_r=l1tilde_r,
                         l1tilde_s=l1tilde_s)
+elif model_class == 'rne_l1tilde_da':
+    from exp3_models.rne_l1tilde import RNEL1Tilde
+
+    parts = read_parts_file(data_dir, data_name)
+
+    model = RNEL1Tilde(num_nodes=num_nodes,
+                        embed_size=embedding_dim,
+                        max_distance=max_distance,
+                        parts=parts,
+                        l1tilde_r=l1tilde_r,
+                        l1tilde_s=l1tilde_s,
+                        aux_lambda=args.aux_lambda)
 elif model_class == 'lpnorm_l1tilde':
     from models.lpnorm_l1tilde import LpNormL1Tilde
 
@@ -736,7 +780,8 @@ train_history = model.fit(dataloader=train_dataloader,
                           landmarks=dist2gnn_landmarks if model_class == 'dist2gnn' else None,
                           landmark_ratio=dist2gnn_landmark_ratio if model_class == 'dist2gnn' else 0.0,
                           active_finetune=dist2gnn_active_finetune if model_class == 'dist2gnn' else False,
-                          top_k_ratio=dist2gnn_top_k_ratio if model_class == 'dist2gnn' else 0.1)
+                          top_k_ratio=dist2gnn_top_k_ratio if model_class == 'dist2gnn' else 0.1,
+                          bidirectional=bidirectional)
 end_time = time.perf_counter()
 precomputation_time = end_time - start_time
 print(f"Optimization Finished!")
