@@ -631,6 +631,20 @@ elif model_class == 'rgnndist2vec_l1tilde':
                                  disable_edge_weight=disable_edge_weight,
                                  l1tilde_r=l1tilde_r,
                                  l1tilde_s=l1tilde_s)
+elif model_class == 'rgnndist2vec_l1tilde_proj':
+    from exp1_models.rgnndist2vec_l1tilde import RGNNdist2vecL1Tilde
+
+    # Initialize model (解耦投影头版本 — 实验1 策略一)
+    model = RGNNdist2vecL1Tilde(n_input=2,
+                                 n_hidden_1=512,
+                                 n_hidden_2=embedding_dim,
+                                 layer_type=gnn_layer,
+                                 node_attributes=node_attributes,
+                                 edge_attributes=edge_attributes,
+                                 max_distance=max_distance,
+                                 disable_edge_weight=disable_edge_weight,
+                                 l1tilde_r=l1tilde_r,
+                                 l1tilde_s=l1tilde_s)
 elif model_class == 'rne_l1tilde':
     from models.rne_l1tilde import RNEL1Tilde
 
@@ -638,6 +652,19 @@ elif model_class == 'rne_l1tilde':
     parts = read_parts_file(data_dir, data_name)
 
     # Initialize model
+    model = RNEL1Tilde(num_nodes=num_nodes,
+                        embed_size=embedding_dim,
+                        max_distance=max_distance,
+                        parts=parts,
+                        l1tilde_r=l1tilde_r,
+                        l1tilde_s=l1tilde_s)
+elif model_class == 'rne_l1tilde_proj':
+    from exp1_models.rne_l1tilde import RNEL1Tilde
+
+    # Load parts information (if available)
+    parts = read_parts_file(data_dir, data_name)
+
+    # Initialize model (解耦投影头版本 — 实验1 策略一)
     model = RNEL1Tilde(num_nodes=num_nodes,
                         embed_size=embedding_dim,
                         max_distance=max_distance,
