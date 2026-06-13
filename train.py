@@ -311,7 +311,7 @@ print(f"  - Mean/Std distance: {train_dataset.D.mean():.2f}/{train_dataset.D.std
 max_distance_raw = train_dataset.D.max()
 # Normalize distances to [0, 1] for stable training.
 # ndist2vec is designed for raw meter-scale distances (v1-v4 init depends on it).
-if model_class not in ('ndist2vec', 'lpnorm', 'landmark', 'catboost'):
+if model_class not in ('ndist2vec', 'ndist2vec_l1tilde', 'lpnorm', 'landmark', 'catboost'):
     train_dataset.queries[:, 2] = train_dataset.queries[:, 2].astype(float) / max_distance_raw
     test_dataset.queries[:, 2] = test_dataset.queries[:, 2].astype(float) / max_distance_raw
     if train_dataset.queries.shape[1] > 3:
@@ -435,6 +435,14 @@ elif model_class == 'ndist2vec':
                       n_output=1,                       ## Output size
                       max_distance=max_distance         ## Meter-scale, ndist2vec needs raw values
                       )
+elif model_class == 'ndist2vec_l1tilde':
+    from models.ndist2vec_l1tilde import Ndist2vecL1Tilde
+
+    model = Ndist2vecL1Tilde(num_nodes=num_nodes,
+                              embed_size=embedding_dim,
+                              max_distance=max_distance,
+                              l1tilde_r=l1tilde_r,
+                              l1tilde_s=l1tilde_s)
 elif model_class == 'lpnorm':
     from models.lpnorm import LpNorm
 
@@ -451,6 +459,17 @@ elif model_class == 'vdist2vec':
                       n_output=1,                       ## Output size
                       max_distance=max_distance         ## Maximum distance for scaling
                       )
+elif model_class == 'vdist2vec_l1tilde':
+    from models.vdist2vec_l1tilde import Vdist2vecL1Tilde
+
+    model = Vdist2vecL1Tilde(n_input=num_nodes,
+                              n_hidden_1=embedding_dim,
+                              n_hidden_2=100,
+                              n_hidden_3=20,
+                              n_output=1,
+                              max_distance=max_distance,
+                              l1tilde_r=l1tilde_r,
+                              l1tilde_s=l1tilde_s)
 elif model_class == 'rgnndist2vec':
     from models.rgnndist2vec import RGNNdist2vec
 
@@ -515,6 +534,15 @@ elif model_class == 'aneda':
                   distance_measure=distance_measure,                ## Distance measure to use
                   p=p_norm                                          ## p-value for Lp norm (if applicable)
                   )
+elif model_class == 'aneda_mlp':
+    from models.aneda_mlp import ANEDAMLP
+    model = ANEDAMLP(num_nodes=num_nodes, embed_size=embedding_dim,
+                      max_distance=max_distance, use_l1tilde=False)
+elif model_class == 'aneda_mlp_l1tilde':
+    from models.aneda_mlp import ANEDAMLP
+    model = ANEDAMLP(num_nodes=num_nodes, embed_size=embedding_dim,
+                      max_distance=max_distance, use_l1tilde=True,
+                      l1tilde_r=l1tilde_r, l1tilde_s=l1tilde_s)
 elif model_class == 'path2vec':
     from models.path2vec import Path2vec
 
@@ -643,6 +671,34 @@ elif model_class == 'rgnndist2vec_l1tilde':
                                  l1tilde_s=l1tilde_s,
                                  directed=args.directed,
                                  aux_loss_weight=aux_loss_weight)
+elif model_class == 'rgnndist2vec_mlp':
+    from models.rgnndist2vec_mlp import RGNNdist2vecMLP
+
+    model = RGNNdist2vecMLP(n_input=2,
+                             n_hidden_1=512,
+                             n_hidden_2=embedding_dim,
+                             layer_type=gnn_layer,
+                             node_attributes=node_attributes,
+                             edge_attributes=edge_attributes,
+                             max_distance=max_distance,
+                             disable_edge_weight=disable_edge_weight,
+                             directed=args.directed,
+                             use_l1tilde=False)
+elif model_class == 'rgnndist2vec_mlp_l1tilde':
+    from models.rgnndist2vec_mlp import RGNNdist2vecMLP
+
+    model = RGNNdist2vecMLP(n_input=2,
+                             n_hidden_1=512,
+                             n_hidden_2=embedding_dim,
+                             layer_type=gnn_layer,
+                             node_attributes=node_attributes,
+                             edge_attributes=edge_attributes,
+                             max_distance=max_distance,
+                             disable_edge_weight=disable_edge_weight,
+                             directed=args.directed,
+                             use_l1tilde=True,
+                             l1tilde_r=l1tilde_r,
+                             l1tilde_s=l1tilde_s)
 elif model_class == 'dual_gnn':
     from models.dual_gnn import DualGNN
 
@@ -684,6 +740,18 @@ elif model_class == 'rne_l1tilde':
                         parts=parts,
                         l1tilde_r=l1tilde_r,
                         l1tilde_s=l1tilde_s)
+elif model_class == 'rne_mlp':
+    from models.rne_mlp import RNEMLP
+    parts = read_parts_file(data_dir, data_name)
+    model = RNEMLP(num_nodes=num_nodes, embed_size=embedding_dim,
+                    max_distance=max_distance, parts=parts,
+                    use_l1tilde=False)
+elif model_class == 'rne_mlp_l1tilde':
+    from models.rne_mlp import RNEMLP
+    parts = read_parts_file(data_dir, data_name)
+    model = RNEMLP(num_nodes=num_nodes, embed_size=embedding_dim,
+                    max_distance=max_distance, parts=parts,
+                    use_l1tilde=True, l1tilde_r=l1tilde_r, l1tilde_s=l1tilde_s)
 elif model_class == 'lpnorm_l1tilde':
     from models.lpnorm_l1tilde import LpNormL1Tilde
 
