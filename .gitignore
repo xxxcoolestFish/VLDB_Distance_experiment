@@ -7,3 +7,9 @@ __pycache__/
 results/
 data/
 cache/
+.claude/
+*.log
+quick_harbin_l1tilde/filtered_data/
+bigmap/
+cuda-distance/
+*.pdf
