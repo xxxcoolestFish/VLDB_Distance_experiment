@@ -436,7 +436,7 @@ elif model_class == 'ndist2vec':
                       max_distance=max_distance         ## Meter-scale, ndist2vec needs raw values
                       )
 elif model_class == 'ndist2vec_l1tilde':
-    from models.ndist2vec_l1tilde import Ndist2vecL1Tilde
+    from experiments.cross_encoder.models.ndist2vec_l1tilde import Ndist2vecL1Tilde
 
     model = Ndist2vecL1Tilde(num_nodes=num_nodes,
                               embed_size=embedding_dim,
@@ -460,7 +460,7 @@ elif model_class == 'vdist2vec':
                       max_distance=max_distance         ## Maximum distance for scaling
                       )
 elif model_class == 'vdist2vec_l1tilde':
-    from models.vdist2vec_l1tilde import Vdist2vecL1Tilde
+    from experiments.cross_encoder.models.vdist2vec_l1tilde import Vdist2vecL1Tilde
 
     model = Vdist2vecL1Tilde(n_input=num_nodes,
                               n_hidden_1=embedding_dim,
@@ -535,11 +535,11 @@ elif model_class == 'aneda':
                   p=p_norm                                          ## p-value for Lp norm (if applicable)
                   )
 elif model_class == 'aneda_mlp':
-    from models.aneda_mlp import ANEDAMLP
+    from experiments.cross_encoder.models.aneda_mlp import ANEDAMLP
     model = ANEDAMLP(num_nodes=num_nodes, embed_size=embedding_dim,
                       max_distance=max_distance, use_l1tilde=False)
 elif model_class == 'aneda_mlp_l1tilde':
-    from models.aneda_mlp import ANEDAMLP
+    from experiments.cross_encoder.models.aneda_mlp import ANEDAMLP
     model = ANEDAMLP(num_nodes=num_nodes, embed_size=embedding_dim,
                       max_distance=max_distance, use_l1tilde=True,
                       l1tilde_r=l1tilde_r, l1tilde_s=l1tilde_s)
@@ -672,7 +672,7 @@ elif model_class == 'rgnndist2vec_l1tilde':
                                  directed=args.directed,
                                  aux_loss_weight=aux_loss_weight)
 elif model_class == 'rgnndist2vec_mlp':
-    from models.rgnndist2vec_mlp import RGNNdist2vecMLP
+    from experiments.cross_encoder.models.rgnndist2vec_mlp import RGNNdist2vecMLP
 
     model = RGNNdist2vecMLP(n_input=2,
                              n_hidden_1=512,
@@ -685,7 +685,7 @@ elif model_class == 'rgnndist2vec_mlp':
                              directed=args.directed,
                              use_l1tilde=False)
 elif model_class == 'rgnndist2vec_mlp_l1tilde':
-    from models.rgnndist2vec_mlp import RGNNdist2vecMLP
+    from experiments.cross_encoder.models.rgnndist2vec_mlp import RGNNdist2vecMLP
 
     model = RGNNdist2vecMLP(n_input=2,
                              n_hidden_1=512,
@@ -741,13 +741,13 @@ elif model_class == 'rne_l1tilde':
                         l1tilde_r=l1tilde_r,
                         l1tilde_s=l1tilde_s)
 elif model_class == 'rne_mlp':
-    from models.rne_mlp import RNEMLP
+    from experiments.cross_encoder.models.rne_mlp import RNEMLP
     parts = read_parts_file(data_dir, data_name)
     model = RNEMLP(num_nodes=num_nodes, embed_size=embedding_dim,
                     max_distance=max_distance, parts=parts,
                     use_l1tilde=False)
 elif model_class == 'rne_mlp_l1tilde':
-    from models.rne_mlp import RNEMLP
+    from experiments.cross_encoder.models.rne_mlp import RNEMLP
     parts = read_parts_file(data_dir, data_name)
     model = RNEMLP(num_nodes=num_nodes, embed_size=embedding_dim,
                     max_distance=max_distance, parts=parts,

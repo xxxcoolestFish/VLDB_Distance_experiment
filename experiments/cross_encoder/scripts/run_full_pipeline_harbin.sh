@@ -18,7 +18,7 @@ $PY --model_class rgnndist2vec --gnn_layer sage \
     --validate --log_dir results/hb_sage_stage1
 
 echo "===== Stage2: SAGE Cross-Encoder L1 vs L1Tilde ====="
-/root/miniconda3/bin/python -u scripts/cross_encoder_correct.py \
+/root/miniconda3/bin/python -u experiments/cross_encoder/scripts/cross_encoder_correct.py \
     --data_dir $DATA --gnn_ckpt results/hb_sage_stage1/saved_models/rgnndist2vec_OSM_Harbin_random_500k.pt \
     --gnn_layer sage --epochs 50 --r $R --s $S
 
@@ -30,7 +30,7 @@ $PY --model_class rgnndist2vec --gnn_layer gat \
     --validate --log_dir results/hb_gat_stage1
 
 echo "===== Stage2: GAT Cross-Encoder L1 vs L1Tilde ====="
-/root/miniconda3/bin/python -u scripts/cross_encoder_correct.py \
+/root/miniconda3/bin/python -u experiments/cross_encoder/scripts/cross_encoder_correct.py \
     --data_dir $DATA --gnn_ckpt results/hb_gat_stage1/saved_models/rgnndist2vec_OSM_Harbin_random_500k.pt \
     --gnn_layer gat --epochs 50 --r $R --s $S
 

@@ -2,9 +2,9 @@
 Cross-Encoder for Embedding-based baselines (RNE, ANEDA, NDist2Vec, VDist2Vec).
 Loads frozen embeddings → concat(feat_u, feat_v) → MLP → L1/L1Tilde.
 """
-import numpy as np, torch, torch.nn as nn, time, sys, argparse
+import numpy as np, torch, torch.nn as nn, time, sys, os, argparse
 from torch.utils.data import DataLoader, TensorDataset
-sys.path.insert(0, '.')
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../..'))
 from utils.data_utils import load_graph, read_query_file
 
 torch.manual_seed(42)

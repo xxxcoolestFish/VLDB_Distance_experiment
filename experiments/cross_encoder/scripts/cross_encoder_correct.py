@@ -6,9 +6,9 @@ Cross-Encoder L1 vs L1Tilde — 正确方法（两阶段训练）
 
 对应导师 ablation_study/scripts/cross_encoder_test.py 的方法。
 """
-import numpy as np, torch, torch.nn as nn, time, sys, argparse
+import numpy as np, torch, torch.nn as nn, time, sys, os, argparse
 from torch.utils.data import DataLoader, TensorDataset
-sys.path.insert(0, '.')
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../..'))
 from utils.data_utils import load_graph, get_edge_attributes, get_node_attributes
 from utils.torch_utils import read_query_file
 from models.rgnndist2vec import RGNNdist2vec
