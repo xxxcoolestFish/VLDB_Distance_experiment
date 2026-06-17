@@ -39,23 +39,31 @@ VLDB_Distance_experiment/
 
 ---
 
-## 实验方法
+## 实验设计
 
-### Cross-Encoder + L1Tilde（正确方法）
+每个 baseline 的三组对照实验：
 
-遵循导师的两阶段训练策略：
+| 实验 | 名称 | Encoder | Decoder | 说明 |
+|:---:|------|------|------|------|
+| 1 | **Bi-Encoder（原版）** | GNN/Embedding 独立编码 | L1 / mean(\|Δ\|) / cos | 原始 baseline |
+| 2 | **CE + L1** | 冻结 Encoder → concat → MLP | `‖y_d − y_o‖₁` | 加了 MLP 交互，保持 L1 |
+| 3 | **CE + L1Tilde** | 冻结 Encoder → concat → MLP | `L̃₁(y_o, y_d)` r=2,s=62 | MLP 交互 + L1Tilde 放大方向性 |
+
+实验 2 和 3 的唯一区别是 Decoder（L1 vs L1Tilde），控制变量测量 L1Tilde 的净效应。
+
+### 实验方法（两阶段训练）
 
 ```
-阶段1: 训练 Bi-Encoder (GNN / Embedding) → 保存 checkpoint
-阶段2: 冻结 Encoder → 提取特征 → Cross-Encoder → L1 / L1Tilde(r=2,s=62)
+阶段1: 训练 Bi-Encoder → 保存 checkpoint
+        GNN(coord→64D) + L1 Decoder  /  Embedding(N,64) + 原版Decoder
 
-   concat(feat_u, feat_v) → MLP(BN+Dropout) → y_o(64D), y_d(64D)
-                                                    ↓
-                                          L1:   ‖y_d − y_o‖₁
-                                          L1Tilde:  r=2 对称 + s=62 非对称
+阶段2: 冻结 Encoder → 提取特征 → Cross-Encoder
+        concat(feat_u, feat_v) → MLP(BN+Dropout) → y_o(64D), y_d(64D)
+                                                        ↓
+                                              CE+L1:    ‖y_d − y_o‖₁
+                                              CE+L1Tilde: r=2对称 + s=62非对称
+       只训练 MLP，Encoder 参数不动
 ```
-
-**关键参数**: GNN 30ep lr=0.001, CE 50ep lr=0.001, SmoothL1, random_500k queries
 
 ---
 
@@ -120,7 +128,7 @@ python train.py --model_class vdist2vec_l1tilde --l1tilde_r 2 --l1tilde_s 62 ...
 
 ## 核心实验结果
 
-### 三城对比（两阶段 Cross-Encoder, r=2,s=62）
+### 三城对比（两阶段 CE+L1Tilde, r=2,s=62）
 
 | City | 节点 | 最佳模型 | Best MRE |
 |------|:---:|------|:---:|
