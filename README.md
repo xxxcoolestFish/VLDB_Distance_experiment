@@ -2,203 +2,216 @@
 
 Code and experiments for: *"Does L̃₁ asymmetric metric improve over L1 for directed road network distance estimation?"*
 
+---
+
+## 项目目录结构
+
+```
+VLDB_Distance_experiment/
+├── train.py                          # 主训练入口 (支持所有 model_class)
+├── models/                           # 原始 17 个 baseline 模型 (不变)
+├── utils/                            # 共享工具 (data_utils, torch_utils 等)
+├── scripts/                          # 数据准备、benchmark 脚本
+│
+├── experiments/                      # ★ 实验代码
+│   └── cross_encoder/               # Cross-Encoder + L1Tilde 实验
+│       ├── models/                   # CE 模型 (5个)
+│       │   ├── rgnndist2vec_mlp.py   #   GNN → concat → MLP → L1/L1Tilde
+│       │   ├── rne_mlp.py            #   RNE → concat → MLP → L1/L1Tilde
+│       │   ├── aneda_mlp.py          #   ANEDA → concat → MLP → L1/L1Tilde
+│       │   ├── ndist2vec_l1tilde.py  #   NDist2Vec + L1Tilde
+│       │   └── vdist2vec_l1tilde.py  #   VDist2Vec + L1Tilde
+│       └── scripts/                  # CE 运行脚本 (4个)
+│           ├── cross_encoder_correct.py   # 正确方法: 冻结GNN→CE L1/L1Tilde
+│           ├── cross_encoder_emb.py       # 冻结Embedding→CE L1/L1Tilde
+│           ├── run_all_baselines_cd.sh    # Chengdu 批量运行
+│           └── run_full_pipeline_harbin.sh # Harbin 完整 pipeline
+│
+├── ablation_study/                   # 导师的实验代码 (参考)
+├── original/                         # 历史参考代码
+├── modified/                         # 历史参考 L1Tilde 变体
+│
+├── 最终实验总结.md                    # 全部实验结果汇总
+├── 实验结果深度分析.md                # 从架构角度的深度分析
+├── CrossEncoder_L1Tilde_实验记录.md   # 实验过程记录
+└── 第一次消融分析.md                  # 原始消融分析
+```
+
+---
+
+## 实验方法
+
+### Cross-Encoder + L1Tilde（正确方法）
+
+遵循导师的两阶段训练策略：
+
+```
+阶段1: 训练 Bi-Encoder (GNN / Embedding) → 保存 checkpoint
+阶段2: 冻结 Encoder → 提取特征 → Cross-Encoder → L1 / L1Tilde(r=2,s=62)
+
+   concat(feat_u, feat_v) → MLP(BN+Dropout) → y_o(64D), y_d(64D)
+                                                    ↓
+                                          L1:   ‖y_d − y_o‖₁
+                                          L1Tilde:  r=2 对称 + s=62 非对称
+```
+
+**关键参数**: GNN 30ep lr=0.001, CE 50ep lr=0.001, SmoothL1, random_500k queries
+
+---
+
+## 运行方式
+
+### 1. 训练原有 Bi-Encoder Baseline
+
+```bash
+# 单 GNN baseline
+python train.py --model_class rgnndist2vec --gnn_layer sage \
+    --data_dir data/OSM_Chengdu --query_dir data/OSM_Chengdu/random_500k \
+    --epochs 30 --device cuda --loss smoothl1 --learning_rate 0.001 --seed 42
+
+# 支持的 model_class: 见下方 "All Supported Models"
+```
+
+### 2. Cross-Encoder 实验（正确方法）
+
+```bash
+# GNN-based: 使用 cross_encoder_correct.py
+python experiments/cross_encoder/scripts/cross_encoder_correct.py \
+    --data_dir data/OSM_Chengdu \
+    --gnn_ckpt results/xxx/saved_models/rgnndist2vec_OSM_Chengdu_random_500k.pt \
+    --gnn_layer sage --epochs 50 --r 2 --s 62
+
+# Embedding-based: 使用 cross_encoder_emb.py
+python experiments/cross_encoder/scripts/cross_encoder_emb.py \
+    --data_dir data/OSM_Chengdu \
+    --model_class rne --ckpt results/xxx/saved_models/rne_OSM_Chengdu_random_500k.pt \
+    --epochs 50 --r 2 --s 62
+```
+
+### 3. 批量运行（完整 Pipeline）
+
+```bash
+# Chengdu: 所有 7 个 baseline × Cross-Encoder L1/L1Tilde
+bash experiments/cross_encoder/scripts/run_all_baselines_cd.sh
+
+# Harbin: SAGE + GAT 完整 pipeline（先训 GNN 再 CE）
+bash experiments/cross_encoder/scripts/run_full_pipeline_harbin.sh
+```
+
+### 4. 新增的 model_class（用于端到端训练，不推荐）
+
+```bash
+# GNN + MLP Cross-Encoder (端到端，不如两阶段)
+python train.py --model_class rgnndist2vec_mlp --gnn_layer sage ...
+python train.py --model_class rgnndist2vec_mlp_l1tilde --gnn_layer sage --l1tilde_r 2 --l1tilde_s 62 ...
+
+# 纯 Embedding + MLP Cross-Encoder
+python train.py --model_class rne_mlp ...
+python train.py --model_class rne_mlp_l1tilde --l1tilde_r 2 --l1tilde_s 62 ...
+python train.py --model_class aneda_mlp ...
+python train.py --model_class aneda_mlp_l1tilde --l1tilde_r 2 --l1tilde_s 62 ...
+
+# L1Tilde 变体 (直接替换)
+python train.py --model_class ndist2vec_l1tilde --l1tilde_r 2 --l1tilde_s 62 ...
+python train.py --model_class vdist2vec_l1tilde --l1tilde_r 2 --l1tilde_s 62 ...
+```
+
+---
+
+## 核心实验结果
+
+### 三城对比（两阶段 Cross-Encoder, r=2,s=62）
+
+| City | 节点 | 最佳模型 | Best MRE |
+|------|:---:|------|:---:|
+| **Chengdu** | 111K | GAT Bi-Encoder | **3.38%** |
+| **Beijing** | 163K | GAT Bi-Encoder | **3.68%** |
+| **Harbin** | 43K | SAGE Bi-Encoder | **5.10%** |
+
+### L1Tilde 有效性（仅在路网有方向性的城市有效）
+
+| Baseline | Chengdu | Beijing | Harbin |
+|------|:---:|:---:|:---:|
+| SAGE | **-1.17pp** ✅ | +0.17 | +1.67 |
+| GAT | +0.71 | **-1.01pp** ✅ | +6.24 |
+| RNE | **-3.44pp** ✅ | — | — |
+| ANEDA | **-21.11pp** 🔥 | — | — |
+
+L1Tilde 有效: 4/14 (29%)。仅在 Encoder 缺乏方向能力 + 路网方向性强的场景有效。
+
+### 核心结论
+
+1. **GAT Bi-Encoder 是一致最佳方案**（3.38-5.12%），无需任何改造
+2. **r=2,s=62（2对称+62非对称）是正确配置**；r=62,s=2 导致 L1Tilde 崩溃
+3. **两阶段训练 > 端到端**：GNN 和 MLP 必须分开训练
+4. **Bi-Encoder 始终 >> Cross-Encoder**（差距 2-6x）
+5. **Harbin 方向信号太弱**，所有 L1Tilde 改造均失败
+
+---
+
 ## Data Preparation
 
 ### Data Sources
 
 Road network data is downloaded from OpenStreetMap via OSMnx for 4 Chinese cities:
 
-| City | Approx. Nodes | Approx. Edges | Query Pairs (45/node) |
-|------|:-----------:|:-----------:|:-------------------:|
-| Harbin | 44K | 108K | ~1,981,000 |
-| Chengdu | 111K | 275K | ~4,995,000 |
-| Qingdao | 119K | 294K | ~5,355,000 |
-| Beijing | 163K | 402K | ~7,335,000 |
+| City | Approx. Nodes | Approx. Edges |
+|------|:-----------:|:-----------:|
+| Harbin | 44K | 108K |
+| Chengdu | 111K | 275K |
+| Qingdao | 119K | 294K |
+| Beijing | 163K | 402K |
 
-All road networks are **directed graphs** (oneway roads preserved, ~18% edges are oneway). Shortest-path distances are asymmetric: `d(u→v) ≠ d(v→u)` for ~94% of query pairs.
-
-### Pipeline Overview
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  Stage 1: Download + Convert                              │
-│  python scripts/prepare_data.py                           │
-│  ┌──────────┐    ┌──────────┐    ┌────────────────────┐  │
-│  │ OSMnx    │ →  │ .nodes   │    │ data/OSM_{City}/   │  │
-│  │ download │    │ .edges   │    │   {City}.nodes      │  │
-│  │          │    │          │    │   {City}.edges      │  │
-│  └──────────┘    └──────────┘    └────────────────────┘  │
-├─────────────────────────────────────────────────────────┤
-│  Stage 2: Generate Query Pairs (same script)              │
-│  ┌──────────────────┐    ┌─────────────────────────────┐ │
-│  │ CCH shortest     │ →  │ {City}_train.queries (80%)  │ │
-│  │ path (inertial   │    │ {City}_test.queries  (20%)  │ │
-│  │ flow ordering)   │    │ Format: u,v,d_uv,d_vu       │ │
-│  └──────────────────┘    └─────────────────────────────┘ │
-├─────────────────────────────────────────────────────────┤
-│  Stage 3: Extra files — auto-generated on first model run │
-│  RNE → .parts (METIS)    CatBoost → landmark embeddings   │
-└─────────────────────────────────────────────────────────┘
-```
-
-### Query Strategy
-
-Queries are generated proportional to graph size: **45 pairs per node** (matching the original survey protocol). For each (source, target) pair, both `d_uv` and `d_vu` are computed via CCH exact shortest path, enabling evaluation on directed graphs.
-
-### Auto-Generated Files
-
-When running RNE, CatBoost, or CatBoostNN for the first time on a city, the required extra data files are **automatically generated** and cached to disk:
-
-| Model | Auto-generated file | Time (Harbin) | Dependency |
-|-------|--------------------|:---:|------------|
-| RNE | `.parts` (hierarchical METIS partitions) | ~1 min | `pymetis` |
-| CatBoost / CatBoostNN | `landmark_dim61.embeddings` | ~3 min | (none extra) |
-
-Subsequent runs skip generation. You can also pre-generate manually:
-```bash
-python scripts/generate_landmark_distances.py --data_dir data/OSM_Harbin
-python scripts/generate_parts_file_rne.py --data_dir data/OSM_Harbin      # needs pymetis
-```
-
-## Quick Start
+### Quick Start
 
 ```bash
 # 1. Install dependencies
 pip install torch torch_geometric numpy pandas networkx scikit-learn tqdm matplotlib seaborn osmnx routingkit_cch catboost
 
-# 2. Download and prepare data (Stages 1 + 2: .nodes, .edges, .queries)
-python scripts/prepare_data.py                      # all 4 cities
-# python scripts/prepare_data.py --city Harbin      # single city
+# 2. Download and prepare data
+python scripts/prepare_data.py
 
-# (Optional) Install pymetis if you plan to use RNE
-pip install pymetis
-
-# 4. Run a single model
+# 3. Run a single Bi-Encoder model
 python train.py --model_class rgnndist2vec --gnn_layer gat \
-    --data_dir data/OSM_Harbin --query_dir data/OSM_Harbin/proportional \
-    --epochs 20 --device cpu --force_shift 0 --log_dir results/test
+    --data_dir data/OSM_Harbin --query_dir data/OSM_Harbin/random_500k \
+    --epochs 30 --device cuda --force_shift 0 --log_dir results/test
 
-# 5. Run full benchmark (16 baselines × 5 cities)
+# 4. Run Cross-Encoder experiment (correct method)
+python experiments/cross_encoder/scripts/cross_encoder_correct.py \
+    --data_dir data/OSM_Chengdu --gnn_ckpt <checkpoint_path> \
+    --gnn_layer sage --epochs 50 --r 2 --s 62
+
+# 5. Run full benchmark
 bash scripts/run_full_benchmark.sh
-
-# 6. Run L1→L̃₁ ablation (5 groups × 5 cities)
-bash scripts/run_l1tilde_ablation.sh
-
-# 7. Collect & compare results
-python scripts/collect_results.py
 ```
 
-## Directory Structure
-
-```
-l1tilde-metric-study/
-├── train.py                # Main entry point (supports all models via --model_class)
-├── models/                 # All model implementations (runnable)
-│   ├── basemodel.py        #   Base model class (fit / evaluate)
-│   ├── geodnn.py           #   GeoDNN
-│   ├── landmark.py         #   Landmark (non-ML)
-│   ├── lpnorm.py           #   LpNorm (non-ML, L1 Manhattan)
-│   ├── lpnorm_l1tilde.py   #   ★ LpNorm → L̃₁ variant
-│   ├── rgnndist2vec.py     #   ★ RGNNdist2vec (GAT/SAGE/GCN, L1)
-│   ├── rgnndist2vec_l1tilde.py  # ★ RGNNdist2vec → L̃₁ variant
-│   ├── rne.py              #   ★ RNE (L1-mean)
-│   ├── rne_l1tilde.py      #   ★ RNE → L̃₁ variant
-│   ├── ndist2vec.py        #   NDist2Vec
-│   ├── vdist2vec.py        #   VDist2Vec
-│   ├── distancenn.py       #   DistanceNN
-│   ├── embeddingnn.py      #   EmbeddingNN
-│   ├── aneda.py            #   ANEDA
-│   ├── path2vec.py         #   Path2Vec
-│   ├── catboostmodel.py    #   CatBoost (GBDT)
-│   ├── catboostnn.py       #   CatBoostNN
-│   ├── dist2gnn_model.py   #   Dist2GNN (our method)
-│   ├── dist2vec.py         #   Dist2Vec pretraining
-│   └── sparse_matrix_model.py
-├── utils/                  # Shared utilities
-│   ├── data_utils.py       #   Graph I/O, landmark selection, preprocessing
-│   ├── torch_utils.py      #   Dataset classes, optimizer, device detection
-│   ├── plot_utils.py       #   Learning curves, error plots
-│   ├── asymmetric_metrics.py  # L̃₁/L̃∞ definition
-│   └── active_finetune.py  #   Active fine-tuning
-├── scripts/                # Experiment orchestration
-│   ├── prepare_data.py         # Data download (OSMnx → .nodes/.edges → CCH queries)
-│   ├── run_full_benchmark.sh   # Full: 16 baselines × 5 cities = 85 exps
-│   ├── run_l1tilde_ablation.sh # Ablation: 5 L1Tilde models × 5 cities
-│   ├── run_l1tilde_full.sh     # Ablation (alternative version)
-│   ├── collect_results.py      # Collect & compare L1 vs L1Tilde
-│   └── collect_l1tilde.py      # L1Tilde result collector
-├── original/               # Historical reference (flat copies, for diff comparison)
-├── modified/               # Historical reference (L1Tilde variants + .diff files)
-├── data/                   # Downloaded data (gitignored)
-└── results/                # Experiment output (gitignored)
-```
+---
 
 ## All Supported Models
 
 ```bash
 # Non-ML baselines
-python train.py --model_class landmark --landmark_selection random ...
+python train.py --model_class landmark ...
 python train.py --model_class lpnorm --p_norm 1 ...
 
 # NN baselines
-python train.py --model_class geodnn ...
-python train.py --model_class ndist2vec ...
-python train.py --model_class vdist2vec ...
-python train.py --model_class distancenn ...
-python train.py --model_class embeddingnn ...
-python train.py --model_class catboostnn ...
-python train.py --model_class catboost ...
+python train.py --model_class geodnn / ndist2vec / vdist2vec ...
+python train.py --model_class distancenn / embeddingnn / catboostnn / catboost ...
 
 # Functional baselines
-python train.py --model_class path2vec ...
-python train.py --model_class aneda ...
-python train.py --model_class rne ...
+python train.py --model_class path2vec / aneda / rne ...
 
 # GNN baselines (L1 metric)
-python train.py --model_class rgnndist2vec --gnn_layer gat ...
-python train.py --model_class rgnndist2vec --gnn_layer sage ...
-python train.py --model_class rgnndist2vec --gnn_layer gcn ...
+python train.py --model_class rgnndist2vec --gnn_layer gat/sage/gcn ...
 
-# L1→L̃₁ variants (ablation study)
-python train.py --model_class rgnndist2vec_l1tilde --gnn_layer gat ...
-python train.py --model_class rne_l1tilde ...
-python train.py --model_class lpnorm_l1tilde ...
+# L1→L̃₁ variants
+python train.py --model_class rgnndist2vec_l1tilde / rne_l1tilde / lpnorm_l1tilde ...
+
+# Cross-Encoder variants (experiments/)
+python train.py --model_class rgnndist2vec_mlp / rgnndist2vec_mlp_l1tilde ...
+python train.py --model_class rne_mlp / rne_mlp_l1tilde / aneda_mlp / aneda_mlp_l1tilde ...
+python train.py --model_class ndist2vec_l1tilde / vdist2vec_l1tilde ...
 
 # Our method
 python train.py --model_class dist2gnn ...
 ```
-
-## Experiment Design
-
-**Question**: What is the real contribution of L̃₁ over L1, controlling for model architecture?
-
-**Method**: Take 5 baselines that use L1 distance (RGAT, RSAGE, RGCN, RNE, LpNorm), create L̃₁ variants with *identical architecture*, run the same 5-city directed road network protocol, measure ΔMRE.
-
-**Theoretical basis**: Theorem 3-5 from the paper prove L1 cannot isometrically embed directed graphs, but L̃₁ can.
-
-## Key Finding
-
-| Model | Small cities | Large cities | Overall |
-|-------|:---:|:---:|:---:|
-| RGAT→L1Tilde | ~same | ~same | No significant gain |
-| RSAGE→L1Tilde | ~same | **-1.4 to -1.9%** | Improves on large graphs |
-| RGCN→L1Tilde | ~same | ~same | No change |
-| RNE→L1Tilde | -1% | **+12 to +16%** | Degrades |
-| LpNorm→L1Tilde | broken | broken | N/A (raw coords) |
-
-**Conclusion**: L̃₁ helps SAGE (which lacks attention) on large directed graphs, but GAT's attention mechanism already captures directionality. The metric's benefit depends on the architecture's ability to utilize asymmetric dimensions.
-
-## L̃₁ Metric Implementation (~10 lines per baseline)
-
-The change is minimal and localized:
-
-1. `__init__`: add `l1tilde_r`, `l1tilde_s` parameters
-2. `forward()`: replace `torch.norm(emb1-emb2, p=1)` with:
-   ```python
-   r, s = self.l1tilde_r, self.l1tilde_s
-   sym = torch.abs(emb2[:,:r] - emb1[:,:r]).sum(dim=1, keepdim=True)
-   asym = (emb2[:,r:r+s] - emb1[:,r:r+s]).sum(dim=1, keepdim=True)
-   distance = sym + asym
-   ```
-
-See `modified/*.diff` for exact line-by-line changes.
