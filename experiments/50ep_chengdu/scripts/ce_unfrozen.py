@@ -68,18 +68,13 @@ if args.model_class in ('sage','gat','gcn'):
         nn.Linear(HIDDEN, EMB_DIM * 2),
     ).cuda()
 
-    def compute_embeddings():
-        model.eval()
-        with torch.no_grad():
-            return model.encode(model.geometric_data.x.cuda(),
-                                model.geometric_data.edge_index.cuda())
+    def encode_full_graph():
+        # 不冻结: GNN 正常前传，梯度可回传
+        return model.encode(model.geometric_data.x.cuda(),
+                           model.geometric_data.edge_index.cuda())
 
-    def compute_features():
-        emb = compute_embeddings()
-        return torch.cat([emb, base_feat], dim=1)  # (N, 66)
-
-    def forward_pair(u, v, mode):
-        feats = compute_features()
+    def forward_pair(embeddings, u, v, mode):
+        feats = torch.cat([embeddings, base_feat], dim=1)
         fu, fv = feats[u], feats[v]
         out = mlp(torch.cat([fu, fv], dim=1))
         y_o, y_d = out[:, :EMB_DIM], out[:, EMB_DIM:]
@@ -112,7 +107,7 @@ elif args.model_class in ('aneda', 'rne'):
     # All params trainable
     for p in embedding.parameters(): p.requires_grad = True
 
-    def forward_pair(u, v, mode):
+    def forward_pair(embeddings, u, v, mode):
         eu, ev = embedding(u), embedding(v)
         out = mlp(torch.cat([eu, ev], dim=1))
         y_o, y_d = out[:, :EMB_DIM], out[:, EMB_DIM:]
@@ -125,33 +120,45 @@ elif args.model_class in ('aneda', 'rne'):
 
 # ---- Training ----
 def train(mode, Xt_u, Xt_v, yt, Xv_u, Xv_v, yv):
+    is_gnn = (args.model_class in ('sage','gat','gcn'))
     opt = torch.optim.Adam(
         list(mlp.parameters()) +
-        (list(model.parameters()) if args.model_class in ('sage','gat','gcn')
+        (list(model.parameters()) if is_gnn
          else list(embedding.parameters())),
         lr=LR)
     sch = torch.optim.lr_scheduler.ReduceLROnPlateau(opt, patience=5, factor=0.5)
 
     Xt_u, Xt_v = Xt_u.cuda(), Xt_v.cuda(); yt = yt.cuda()
     Xv_u, Xv_v = Xv_u.cuda(), Xv_v.cuda(); yv = yv.cuda()
-    n_batches = (len(yt) + 4095) // 4096
     best = float('inf')
 
     for ep_i in range(EPOCHS):
-        # Shuffle
+        # 每 epoch 编码一次全图（GNN不冻结，梯度可回传）
+        if is_gnn:
+            emb_all = encode_full_graph()
+        else:
+            # Embedding-based: always have grads
+            emb_all = None
         perm = torch.randperm(len(yt))
         for b in range(0, len(yt), 4096):
             idx = perm[b:b+4096]
             opt.zero_grad()
-            pred = forward_pair(Xt_u[idx], Xt_v[idx], mode)
+            pred = forward_pair(emb_all if is_gnn else None,
+                               Xt_u[idx], Xt_v[idx], mode)
             loss = nn.SmoothL1Loss()(pred, yt[idx] / max_dist)
             loss.backward(); opt.step()
 
+        # Validation: 用 no_grad（不需要梯度）
         with torch.no_grad():
-            pred = forward_pair(Xv_u, Xv_v, mode)
+            if is_gnn:
+                model.eval()
+                emb_val = encode_full_graph()
+            pred = forward_pair(emb_val if is_gnn else None,
+                               Xv_u, Xv_v, mode)
             mre = (torch.abs(pred * max_dist - yv) / (yv + 1e-8)).mean().item()
             sch.step(mre)
             if mre < best: best = mre
+            if is_gnn: model.train()
 
     return best * 100
 
