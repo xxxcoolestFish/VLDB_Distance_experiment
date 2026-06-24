@@ -133,18 +133,14 @@ def train(mode, Xt_u, Xt_v, yt, Xv_u, Xv_v, yv):
     best = float('inf')
 
     for ep_i in range(EPOCHS):
-        # 每 epoch 编码一次全图（GNN不冻结，梯度可回传）
-        if is_gnn:
-            emb_all = encode_full_graph()
-        else:
-            # Embedding-based: always have grads
-            emb_all = None
         perm = torch.randperm(len(yt))
         for b in range(0, len(yt), 4096):
             idx = perm[b:b+4096]
             opt.zero_grad()
-            pred = forward_pair(emb_all if is_gnn else None,
-                               Xt_u[idx], Xt_v[idx], mode)
+            # 每 batch 编码全图（GNN不冻结，梯度可回传）
+            pred = forward_pair(
+                encode_full_graph() if is_gnn else None,
+                Xt_u[idx], Xt_v[idx], mode)
             loss = nn.SmoothL1Loss()(pred, yt[idx] / max_dist)
             loss.backward(); opt.step()
 
