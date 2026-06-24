@@ -150,7 +150,21 @@
 
 ---
 
-## 二、筛选结果：可应用 MLP+L1Tilde 的模型
+## 二、开源验证
+
+全部 7 个推荐 baseline 的 GitHub 仓库均已验证存在：
+
+| Baseline | GitHub | Stars | 框架 | 许可证 |
+|------|------|:---:|------|------|
+| **GRED** | [skeletondyh/GRED](https://github.com/skeletondyh/GRED) | 6 | JAX+Flax | MIT |
+| **PSGNN** | [ZhenyueQin/PSGNN](https://github.com/ZhenyueQin/PSGNN) | — | PyTorch | — |
+| **DLGNN** | [lbn187/DLGNN](https://github.com/lbn187/DLGNN) | — | PyTorch | — |
+| **TGT** | [shamim-hussain/tgt](https://github.com/shamim-hussain/tgt) | — | PyTorch | — |
+| **LPFormer** | [HarryShomer/LPFormer](https://github.com/HarryShomer/LPFormer) | — | PyTorch | — |
+| **Edge Transformer** | [luis-mueller/towards-principled-gts](https://github.com/luis-mueller/towards-principled-gts) | — | PyTorch | — |
+| **SLATE** | [ykrmm/SLATE](https://github.com/ykrmm/SLATE) | — | PyTorch | — |
+
+> ⚠️ GRED 使用 JAX+Flax，与我们的 PyTorch 生态不同，适配工作量较大。其余 6 个均为 PyTorch。
 
 ### 强推荐（A 类：距离预测原生领域）
 
