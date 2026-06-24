@@ -13,3 +13,4 @@ quick_harbin_l1tilde/filtered_data/
 bigmap/
 cuda-distance/
 *.pdf
+new_baselines/

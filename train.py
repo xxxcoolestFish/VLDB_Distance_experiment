@@ -596,6 +596,21 @@ elif model_class == 'catboostnn':
                        landmark_embs=landmark_embs,                 ## Precomputed node embeddings (landmarks distances)
                        max_distance=train_dataset.D.mean()          ## Mean distance for scaling
                        )
+elif model_class in ('dist_enhanced_gnn', 'dist_enhanced_gnn_l1tilde'):
+    from experiments.new_baselines.distance_enhanced_gnn import DistanceEnhancedGNN
+
+    use_lt = (model_class == 'dist_enhanced_gnn_l1tilde')
+    model = DistanceEnhancedGNN(
+        graph=G, num_nodes=num_nodes,
+        node_attributes=node_attributes,
+        edge_attributes=edge_attributes,
+        layer_type=gnn_layer,
+        max_distance=max_distance,
+        disable_edge_weight=disable_edge_weight,
+        num_anchors=16,
+        use_l1tilde=use_lt,
+        l1tilde_r=l1tilde_r, l1tilde_s=l1tilde_s,
+    )
 elif model_class == 'dist2gnn':
     from models.dist2gnn_model import (
         Dist2GNNModel, build_pyg_graph, landmark_sampling
