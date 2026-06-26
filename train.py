@@ -597,7 +597,7 @@ elif model_class == 'catboostnn':
                        max_distance=train_dataset.D.mean()          ## Mean distance for scaling
                        )
 elif model_class in ('dist_enhanced_gnn', 'dist_enhanced_gnn_l1tilde'):
-    from experiments.new_baselines.distance_enhanced_gnn import DistanceEnhancedGNN
+    from experiments.archived.dlg_style.distance_enhanced_gnn import DistanceEnhancedGNN  # [DEPRECATED]
 
     use_lt = (model_class == 'dist_enhanced_gnn_l1tilde')
     model = DistanceEnhancedGNN(
@@ -789,6 +789,52 @@ elif model_class == 'lpnorm_l1tilde':
     model = LpNormL1Tilde(p=p_norm, node_attributes=node_attributes,
                            l1tilde_r=l1tilde_r,
                            l1tilde_s=l1tilde_s)
+elif model_class == 'node2vec':
+    from experiments.new_baselines.node2vec_baseline import Node2VecBaseline, generate_node2vec_embeddings
+    n2v_path = os.path.join(data_dir, f'node2vec_dim{embedding_dim}.npy')
+    if os.path.exists(n2v_path):
+        node2vec_embs = np.load(n2v_path)
+        print(f'Loaded precomputed Node2Vec embeddings: {n2v_path}')
+    else:
+        print(f'Node2Vec embeddings not found, generating from graph...')
+        node2vec_embs = generate_node2vec_embeddings(G, embed_size=embedding_dim, verbose=True)
+        os.makedirs(data_dir, exist_ok=True)
+        np.save(n2v_path, node2vec_embs)
+        print(f'Saved to: {n2v_path}')
+    model = Node2VecBaseline(num_nodes=num_nodes, embed_size=embedding_dim,
+                              max_distance=max_distance, mode='pure',
+                              init_embeddings=node2vec_embs)
+elif model_class == 'node2vec_mlp':
+    from experiments.new_baselines.node2vec_baseline import Node2VecBaseline, generate_node2vec_embeddings
+    n2v_path = os.path.join(data_dir, f'node2vec_dim{embedding_dim}.npy')
+    if os.path.exists(n2v_path):
+        node2vec_embs = np.load(n2v_path)
+        print(f'Loaded precomputed Node2Vec embeddings: {n2v_path}')
+    else:
+        print(f'Node2Vec embeddings not found, generating from graph...')
+        node2vec_embs = generate_node2vec_embeddings(G, embed_size=embedding_dim, verbose=True)
+        os.makedirs(data_dir, exist_ok=True)
+        np.save(n2v_path, node2vec_embs)
+        print(f'Saved to: {n2v_path}')
+    model = Node2VecBaseline(num_nodes=num_nodes, embed_size=embedding_dim,
+                              max_distance=max_distance, mode='mlp_l1',
+                              init_embeddings=node2vec_embs)
+elif model_class == 'node2vec_mlp_l1tilde':
+    from experiments.new_baselines.node2vec_baseline import Node2VecBaseline, generate_node2vec_embeddings
+    n2v_path = os.path.join(data_dir, f'node2vec_dim{embedding_dim}.npy')
+    if os.path.exists(n2v_path):
+        node2vec_embs = np.load(n2v_path)
+        print(f'Loaded precomputed Node2Vec embeddings: {n2v_path}')
+    else:
+        print(f'Node2Vec embeddings not found, generating from graph...')
+        node2vec_embs = generate_node2vec_embeddings(G, embed_size=embedding_dim, verbose=True)
+        os.makedirs(data_dir, exist_ok=True)
+        np.save(n2v_path, node2vec_embs)
+        print(f'Saved to: {n2v_path}')
+    model = Node2VecBaseline(num_nodes=num_nodes, embed_size=embedding_dim,
+                              max_distance=max_distance, mode='mlp_l1tilde',
+                              l1tilde_r=l1tilde_r, l1tilde_s=l1tilde_s,
+                              init_embeddings=node2vec_embs)
 
 else:
     raise ValueError(f"Unknown model class: {model_class}")
