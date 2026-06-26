@@ -119,12 +119,4 @@ python experiments/50ep_chengdu/scripts/ce_unfrozen.py \
 
 ---
 
-## 五、核心结论
-
-1. **GAT Bi-Encoder 一统最佳**（3.21-5.12%），CE 改造无法超越原版
-2. **不冻结优于冻结（约 -1pp）**：让 Encoder 参与训练一致改善
-3. **L1Tilde 有条件有效（43% 案例）**：需数据集有方向性 + Encoder 弱 + r=2,s=62
-4. **r=2,s=62 是正确配置**，r=62,s=2 导致崩溃
-5. **Harbin 方向信号太弱**，所有改造无效
-
 > 完整数据见 [实验总结.md](实验总结.md)，目录说明见 [experiments/README.md](experiments/README.md)
