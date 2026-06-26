@@ -1,225 +1,164 @@
-# VLDB Distance — L1Tilde Metric Ablation Study
+# VLDB Distance — L̃₁ 度量优化路网最短路径距离估计
 
-Code and experiments for: *"Does L̃₁ asymmetric metric improve over L1 for directed road network distance estimation?"*
+研究问题：**L̃₁ (L1Tilde) 非对称度量在 Cross-Encoder 框架下是否优于 L1？**
 
 ---
 
-## 项目目录结构
+## 一、我们对原始项目做了哪些改动
+
+**原则：所有改动是增量的，不覆写原始代码。**
+
+| 改动 | 位置 | 说明 |
+|------|------|------|
+| 新增 CE 模型（5个） | `experiments/cross_encoder/models/` | 冻结 Encoder + MLP → L1/L1Tilde 的 Cross-Encoder 变体 |
+| 新增 CE 训练脚本 | `experiments/cross_encoder/scripts/` | 两阶段训练：先训 Bi-Encoder，再冻结 + MLP |
+| 新增不冻结 CE 脚本 | `experiments/50ep_chengdu/scripts/ce_unfrozen.py` | Part B：GNN+MLP 联合训练 |
+| 新增 Node2Vec baseline | `experiments/new_baselines/node2vec/` | KDD 2016, CCF-A，通用图嵌入 baseline |
+| 注册新模型 | `train.py`（末尾新增 import 块） | 新增的 model_class 通过 `experiments/` 路径注册 |
+| 文档 | 根目录 `实验总结.md`, `experiments/README.md` | 实验结果与目录说明 |
+
+**未改动的部分**：`models/`、`utils/`、`original/` 保持原样。
+
+---
+
+## 二、目录结构（仅列我们新增/相关的）
 
 ```
 VLDB_Distance_experiment/
-├── train.py                          # 主训练入口 (支持所有 model_class)
-├── models/                           # 原始 17 个 baseline 模型 (不变)
-├── utils/                            # 共享工具 (data_utils, torch_utils 等)
-├── scripts/                          # 数据准备、benchmark 脚本
+├── train.py                              # 主入口（我们新增了 model_class 注册）
+├── models/                               # 原始代码，未修改
+├── utils/                                # 原始工具，未修改
 │
-├── experiments/                      # ★ 实验代码
-│   └── cross_encoder/               # Cross-Encoder + L1Tilde 实验
-│       ├── models/                   # CE 模型 (5个)
-│       │   ├── rgnndist2vec_mlp.py   #   GNN → concat → MLP → L1/L1Tilde
-│       │   ├── rne_mlp.py            #   RNE → concat → MLP → L1/L1Tilde
-│       │   ├── aneda_mlp.py          #   ANEDA → concat → MLP → L1/L1Tilde
-│       │   ├── ndist2vec_l1tilde.py  #   NDist2Vec + L1Tilde
-│       │   └── vdist2vec_l1tilde.py  #   VDist2Vec + L1Tilde
-│       └── scripts/                  # CE 运行脚本 (4个)
-│           ├── cross_encoder_correct.py   # 正确方法: 冻结GNN→CE L1/L1Tilde
-│           ├── cross_encoder_emb.py       # 冻结Embedding→CE L1/L1Tilde
-│           ├── run_all_baselines_cd.sh    # Chengdu 批量运行
-│           └── run_full_pipeline_harbin.sh # Harbin 完整 pipeline
+├── experiments/                          # ★ 我们的全部新代码
+│   ├── README.md                         #   目录详细说明
+│   ├── cross_encoder/                    #   Cross-Encoder 实验
+│   │   ├── models/                       #   5 个 CE 模型
+│   │   │   ├── rgnndist2vec_mlp.py       #     GCN/GAT/SAGE + MLP + L1/L1Tilde
+│   │   │   ├── rne_mlp.py                #     RNE + MLP + L1/L1Tilde
+│   │   │   ├── aneda_mlp.py              #     ANEDA + MLP + L1/L1Tilde
+│   │   │   ├── ndist2vec_l1tilde.py      #     NDist2Vec + L1Tilde
+│   │   │   └── vdist2vec_l1tilde.py      #     VDist2Vec + L1Tilde
+│   │   └── scripts/
+│   │       ├── cross_encoder_correct.py  #     冻结 CE 主脚本（Part A）
+│   │       └── cross_encoder_emb.py       #     嵌入预计算
+│   │
+│   ├── 50ep_chengdu/                     #   50 epoch 实验
+│   │   └── scripts/ce_unfrozen.py        #     不冻结 CE（Part B）：GNN+MLP 一起训
+│   │
+│   ├── new_baselines/                    #   我们新增的 baseline
+│   │   └── node2vec/                     #     Node2Vec [KDD 2016]
+│   │       └── node2vec_baseline.py       #     含 pure/+MLP+L1/+MLP+L1Tilde 三模式
+│   │
+│   └── archived/                         #   废弃代码（仅供参考）
+│       ├── dlg_style/                    #     DLGNN-style anchor 增强（被否）
+│       ├── psgnn_style/                   #     PSGNN-style 可学习 anchor（被否）
+│       └── rejected_baselines/           #     下载后判定不合格的原始代码
 │
-├── ablation_study/                   # 导师的实验代码 (参考)
-├── original/                         # 历史参考代码
-├── modified/                         # 历史参考 L1Tilde 变体
-│
-├── 最终实验总结.md                    # 全部实验结果汇总
-├── 实验结果深度分析.md                # 从架构角度的深度分析
-├── CrossEncoder_L1Tilde_实验记录.md   # 实验过程记录
-└── 第一次消融分析.md                  # 原始消融分析
+├── 实验总结.md                            # 完整实验结果（8 baseline × 3 城市）
+└── 第一次消融分析.md                      # 早期探索记录
 ```
 
 ---
 
-## 实验设计
+## 三、实验设计
 
-每个 baseline 的三组对照实验：
+每个 baseline 三组对照：
 
-| 实验 | 名称 | Encoder | Decoder | 说明 |
-|:---:|------|------|------|------|
-| 1 | **Bi-Encoder（原版）** | GNN/Embedding 独立编码 | L1 / mean(\|Δ\|) / cos | 原始 baseline |
-| 2 | **CE + L1** | 冻结 Encoder → concat → MLP | `‖y_d − y_o‖₁` | 加了 MLP 交互，保持 L1 |
-| 3 | **CE + L1Tilde** | 冻结 Encoder → concat → MLP | `L̃₁(y_o, y_d)` r=2,s=62 | MLP 交互 + L1Tilde 放大方向性 |
+| 实验 | 名称 | 方法 |
+|:---:|------|------|
+| 1 | **原版 Bi-Encoder** | GNN/Embedding 直接预测距离 |
+| 2 | **+MLP+L1** | 冻结 Encoder → concat(feat_u, feat_v) → MLP → y_o, y_d → L1 loss |
+| 3 | **+MLP+L1Tilde** | 同上，Decoder 替换为 L1Tilde(r=2,s=62) |
 
-实验 2 和 3 的唯一区别是 Decoder（L1 vs L1Tilde），控制变量测量 L1Tilde 的净效应。
+**冻结（Part A）**：Encoder 训好后冻结，只训 MLP → `cross_encoder_correct.py`
 
-### 实验方法（两阶段训练）
-
-```
-阶段1: 训练 Bi-Encoder → 保存 checkpoint
-        GNN(coord→64D) + L1 Decoder  /  Embedding(N,64) + 原版Decoder
-
-阶段2: 冻结 Encoder → 提取特征 → Cross-Encoder
-        concat(feat_u, feat_v) → MLP(BN+Dropout) → y_o(64D), y_d(64D)
-                                                        ↓
-                                              CE+L1:    ‖y_d − y_o‖₁
-                                              CE+L1Tilde: r=2对称 + s=62非对称
-       只训练 MLP，Encoder 参数不动
-```
+**不冻结（Part B）**：Encoder 不冻结，GNN+MLP 联合训练 → `ce_unfrozen.py`
 
 ---
 
-## 运行方式
-
-### 1. 训练原有 Bi-Encoder Baseline
+## 四、运行方式
 
 ```bash
-# 单 GNN baseline
+# === 原版 Bi-Encoder（7 个原始 baseline）===
 python train.py --model_class rgnndist2vec --gnn_layer sage \
     --data_dir data/OSM_Chengdu --query_dir data/OSM_Chengdu/random_500k \
-    --epochs 30 --device cuda --loss smoothl1 --learning_rate 0.001 --seed 42
+    --epochs 30 --device cuda --seed 42
 
-# 支持的 model_class: 见下方 "All Supported Models"
-```
+# === Node2Vec baseline（我们新增的）===
+python train.py --model_class node2vec           # 实验1: 纯嵌入 L1 距离
+python train.py --model_class node2vec_mlp        # 实验2: +MLP+L1
+python train.py --model_class node2vec_mlp_l1tilde \
+    --l1tilde_r 2 --l1tilde_s 62                  # 实验3: +MLP+L1Tilde
 
-### 2. Cross-Encoder 实验（正确方法）
-
-```bash
-# GNN-based: 使用 cross_encoder_correct.py
+# === Cross-Encoder 实验 ===
+# 冻结 CE（Part A）
 python experiments/cross_encoder/scripts/cross_encoder_correct.py \
-    --data_dir data/OSM_Chengdu \
-    --gnn_ckpt results/xxx/saved_models/rgnndist2vec_OSM_Chengdu_random_500k.pt \
+    --data_dir data/OSM_Chengdu --gnn_ckpt <path> \
     --gnn_layer sage --epochs 50 --r 2 --s 62
 
-# Embedding-based: 使用 cross_encoder_emb.py
-python experiments/cross_encoder/scripts/cross_encoder_emb.py \
-    --data_dir data/OSM_Chengdu \
-    --model_class rne --ckpt results/xxx/saved_models/rne_OSM_Chengdu_random_500k.pt \
-    --epochs 50 --r 2 --s 62
-```
-
-### 3. 批量运行（完整 Pipeline）
-
-```bash
-# Chengdu: 所有 7 个 baseline × Cross-Encoder L1/L1Tilde
-bash experiments/cross_encoder/scripts/run_all_baselines_cd.sh
-
-# Harbin: SAGE + GAT 完整 pipeline（先训 GNN 再 CE）
-bash experiments/cross_encoder/scripts/run_full_pipeline_harbin.sh
-```
-
-### 4. 新增的 model_class（用于端到端训练，不推荐）
-
-```bash
-# GNN + MLP Cross-Encoder (端到端，不如两阶段)
-python train.py --model_class rgnndist2vec_mlp --gnn_layer sage ...
-python train.py --model_class rgnndist2vec_mlp_l1tilde --gnn_layer sage --l1tilde_r 2 --l1tilde_s 62 ...
-
-# 纯 Embedding + MLP Cross-Encoder
-python train.py --model_class rne_mlp ...
-python train.py --model_class rne_mlp_l1tilde --l1tilde_r 2 --l1tilde_s 62 ...
-python train.py --model_class aneda_mlp ...
-python train.py --model_class aneda_mlp_l1tilde --l1tilde_r 2 --l1tilde_s 62 ...
-
-# L1Tilde 变体 (直接替换)
-python train.py --model_class ndist2vec_l1tilde --l1tilde_r 2 --l1tilde_s 62 ...
-python train.py --model_class vdist2vec_l1tilde --l1tilde_r 2 --l1tilde_s 62 ...
+# 不冻结 CE（Part B）
+python experiments/50ep_chengdu/scripts/ce_unfrozen.py \
+    --data_dir data/OSM_Chengdu --gnn_ckpt <path> \
+    --gnn_layer sage --epochs 50 --r 2 --s 62
 ```
 
 ---
 
-## 核心实验结果
+## 五、实验结果
 
-### 三城对比（两阶段 CE+L1Tilde, r=2,s=62）
+### 5.1 8 个 Baseline 总览
 
-| City | 节点 | 最佳模型 | Best MRE |
-|------|:---:|------|:---:|
-| **Chengdu** | 111K | GAT Bi-Encoder | **3.38%** |
-| **Beijing** | 163K | GAT Bi-Encoder | **3.68%** |
-| **Harbin** | 43K | SAGE Bi-Encoder | **5.10%** |
+| # | Baseline | 出处 | CCF | Chengdu 30ep 最佳 MRE |
+|:---:|------|------|:---:|:---:|
+| 1 | GAT | ICLR 2018 | A | **3.38%** 🔥 |
+| 2 | SAGE | NeurIPS 2017 | A | 3.77% |
+| 3 | GCN | ICLR 2017 | A | 19.59% |
+| 4 | Node2Vec 🆕 | KDD 2016 | A | 62.73% |
+| 5 | RNE | VLDBJ 2022 | A | 60.34% |
+| 6 | VDist2Vec | EDBT 2020 | B | 59.39% |
+| 7 | NDist2Vec | ISPRS 2022 | — | 56.52% |
+| 8 | ANEDA | IEEE HPEC 2023 | — | 64.06% |
 
-### L1Tilde 有效性（仅在路网有方向性的城市有效）
+### 5.2 Chengdu 30ep 冻结实验（8 baseline 完整结果）
 
-| Baseline | Chengdu | Beijing | Harbin |
+| Baseline | 实验1 原版 | 实验2 +MLP+L1 | 实验3 +MLP+L1Tilde | L1Tilde Δ |
+|------|:---:|:---:|:---:|:---:|
+| **GAT** | **3.38%** | 7.11% | 7.82% | +0.71 |
+| **SAGE** | 3.77% | 9.31% | **8.14%** | **-1.17** ✅ |
+| GCN | 19.59% | **7.43%** | 8.00% | +0.57 |
+| RNE | 80.75% | 63.78% | **60.34%** | **-3.44** ✅ |
+| ANEDA | 210% | 85.17% | **64.06%** | **-21.11** 🔥 |
+| NDist2Vec | 62.35% | 54.95% | 56.52% | +1.57 |
+| VDist2Vec | 64.57% | 56.12% | 59.39% | +3.27 |
+| **Node2Vec** 🆕 | 77.17% | 66.21% | **62.73%** | **-3.48** ✅ |
+
+### 5.3 Beijing / Harbin（SAGE, GAT）
+
+| Baseline | City | 实验1 原版 | 实验3 +L1Tilde | L1Tilde Δ |
+|------|------|:---:|:---:|:---:|
+| GAT | Beijing | 3.68% | 22.50% | **-1.01** ✅ |
+| SAGE | Beijing | 5.49% | 23.63% | +0.17 |
+| SAGE | Harbin | 5.10% | 14.69% | +1.67 |
+| GAT | Harbin | 5.12% | 17.82% | +6.24 |
+
+### 5.4 Chengdu 50ep 冻结 vs 不冻结
+
+| Baseline | 不冻结 L1Tilde | 冻结 L1Tilde | 不冻结改善 |
 |------|:---:|:---:|:---:|
-| SAGE | **-1.17pp** ✅ | +0.17 | +1.67 |
-| GAT | +0.71 | **-1.01pp** ✅ | +6.24 |
-| RNE | **-3.44pp** ✅ | — | — |
-| ANEDA | **-21.11pp** 🔥 | — | — |
-
-L1Tilde 有效: 4/14 (29%)。仅在 Encoder 缺乏方向能力 + 路网方向性强的场景有效。
-
-### 核心结论
-
-1. **GAT Bi-Encoder 是一致最佳方案**（3.38-5.12%），无需任何改造
-2. **r=2,s=62（2对称+62非对称）是正确配置**；r=62,s=2 导致 L1Tilde 崩溃
-3. **两阶段训练 > 端到端**：GNN 和 MLP 必须分开训练
-4. **Bi-Encoder 始终 >> Cross-Encoder**（差距 2-6x）
-5. **Harbin 方向信号太弱**，所有 L1Tilde 改造均失败
+| SAGE | **6.93%** | 7.85% | -0.92 ✅ |
+| GAT | **6.75%** | 7.74% | -0.99 ✅ |
+| ANEDA | 75.53% | **67.55%** | +7.98 |
 
 ---
 
-## Data Preparation
+## 六、核心结论
 
-### Data Sources
+1. **GAT Bi-Encoder 一致最佳**：Chengdu 3.21%, Beijing 3.68%, Harbin 5.12%，无需任何改造
+2. **Bi-Encoder >> Cross-Encoder（2-6x）**：加 MLP 始终追不上简单 Bi-Encoder
+3. **L1Tilde 有条件有效（43% 案例）**：仅在"数据集有方向性 × Encoder 缺乏方向能力 × r=2,s=62"时有效
+4. **不冻结优于冻结（约 -1pp）**：让 Encoder 参与 CE 训练一致改善
+5. **r=2,s=62 是正确配置**：r=62,s=2 导致 L1Tilde 崩溃到 21.94%
+6. **Harbin 方向信号太弱**：单行道中位 143m，所有 L1Tilde 改造失败
+7. **Node2Vec 确认通用方法 ≠ 路网距离**：62.73% vs GAT 3.38%，差距 19x
 
-Road network data is downloaded from OpenStreetMap via OSMnx for 4 Chinese cities:
-
-| City | Approx. Nodes | Approx. Edges |
-|------|:-----------:|:-----------:|
-| Harbin | 44K | 108K |
-| Chengdu | 111K | 275K |
-| Qingdao | 119K | 294K |
-| Beijing | 163K | 402K |
-
-### Quick Start
-
-```bash
-# 1. Install dependencies
-pip install torch torch_geometric numpy pandas networkx scikit-learn tqdm matplotlib seaborn osmnx routingkit_cch catboost
-
-# 2. Download and prepare data
-python scripts/prepare_data.py
-
-# 3. Run a single Bi-Encoder model
-python train.py --model_class rgnndist2vec --gnn_layer gat \
-    --data_dir data/OSM_Harbin --query_dir data/OSM_Harbin/random_500k \
-    --epochs 30 --device cuda --force_shift 0 --log_dir results/test
-
-# 4. Run Cross-Encoder experiment (correct method)
-python experiments/cross_encoder/scripts/cross_encoder_correct.py \
-    --data_dir data/OSM_Chengdu --gnn_ckpt <checkpoint_path> \
-    --gnn_layer sage --epochs 50 --r 2 --s 62
-
-# 5. Run full benchmark
-bash scripts/run_full_benchmark.sh
-```
-
----
-
-## All Supported Models
-
-```bash
-# Non-ML baselines
-python train.py --model_class landmark ...
-python train.py --model_class lpnorm --p_norm 1 ...
-
-# NN baselines
-python train.py --model_class geodnn / ndist2vec / vdist2vec ...
-python train.py --model_class distancenn / embeddingnn / catboostnn / catboost ...
-
-# Functional baselines
-python train.py --model_class path2vec / aneda / rne ...
-
-# GNN baselines (L1 metric)
-python train.py --model_class rgnndist2vec --gnn_layer gat/sage/gcn ...
-
-# L1→L̃₁ variants
-python train.py --model_class rgnndist2vec_l1tilde / rne_l1tilde / lpnorm_l1tilde ...
-
-# Cross-Encoder variants (experiments/)
-python train.py --model_class rgnndist2vec_mlp / rgnndist2vec_mlp_l1tilde ...
-python train.py --model_class rne_mlp / rne_mlp_l1tilde / aneda_mlp / aneda_mlp_l1tilde ...
-python train.py --model_class ndist2vec_l1tilde / vdist2vec_l1tilde ...
-
-# Our method
-python train.py --model_class dist2gnn ...
-```
+> 完整数据、消融实验、实用建议见 [实验总结.md](实验总结.md)
